@@ -1,3 +1,6 @@
+//! The trusted baseline snapshot: the set of monitored entries plus a
+//! self-integrity digest, persisted atomically and verified on load.
+
 use crate::entry::Entry;
 use crate::error::{Error, Result};
 use serde::{Deserialize, Serialize};
@@ -54,7 +57,12 @@ impl Baseline {
     }
 
     pub fn load(path: &Path) -> Result<Baseline> {
-        let text = std::fs::read_to_string(path)?;
+        // Read raw bytes so a genuine I/O failure (missing/unreadable file)
+        // stays `Io`, while invalid content — non-UTF-8 bytes or bad JSON — is
+        // classified as `Corrupt` (tampering/damage), never silently reset.
+        let bytes = std::fs::read(path)?;
+        let text = String::from_utf8(bytes)
+            .map_err(|_| Error::Corrupt("baseline is not valid UTF-8".into()))?;
         let disk: OnDisk =
             serde_json::from_str(&text).map_err(|e| Error::Corrupt(e.to_string()))?;
         if disk.version != CURRENT_VERSION {
@@ -74,9 +82,8 @@ impl Baseline {
     }
 
     pub fn save(&self, path: &Path) -> Result<()> {
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
+        let dir = path.parent().unwrap_or_else(|| Path::new("."));
+        std::fs::create_dir_all(dir)?;
         let disk = OnDisk {
             version: self.version,
             integrity: self.integrity_digest(),
@@ -84,7 +91,6 @@ impl Baseline {
         };
         let json = serde_json::to_vec_pretty(&disk).map_err(|e| Error::Serde(e.to_string()))?;
 
-        let dir = path.parent().unwrap_or_else(|| Path::new("."));
         let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
         tmp.write_all(&json)?;
         tmp.flush()?;
@@ -148,6 +154,16 @@ mod tests {
         let tampered = text.replace("sha256:1", "sha256:evil");
         std::fs::write(&path, tampered).unwrap();
 
+        let err = Baseline::load(&path).unwrap_err();
+        assert!(matches!(err, crate::error::Error::Corrupt(_)));
+    }
+
+    #[test]
+    fn non_utf8_baseline_is_corrupt_not_io() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("baseline.json");
+        // Invalid UTF-8 bytes: damaged/tampered content, not an I/O failure.
+        std::fs::write(&path, [0xff, 0xfe, 0x00, 0x9c]).unwrap();
         let err = Baseline::load(&path).unwrap_err();
         assert!(matches!(err, crate::error::Error::Corrupt(_)));
     }

@@ -1,4 +1,4 @@
-use super::{render_text, Notifier, NotifyError};
+use super::{change_subject, render_text, Notifier, NotifyError};
 use crate::config::{EmailConfig, EmailTransport};
 use crate::report::ScanReport;
 use lettre::transport::smtp::authentication::Credentials;
@@ -22,17 +22,13 @@ impl EmailNotifier {
         EmailNotifier { cfg }
     }
 
-    fn subject(&self, report: &ScanReport) -> String {
-        format!("SkillShield: {} change(s)", report.findings.len())
-    }
-
     /// Plaintext RFC-822 message piped to `sendmail -t`.
     pub fn build_message(&self, report: &ScanReport) -> String {
         format!(
             "To: {}\r\nFrom: {}\r\nSubject: {}\r\n\r\n{}",
             self.cfg.to,
             self.cfg.from,
-            self.subject(report),
+            change_subject(report),
             render_text(report)
         )
     }
@@ -51,7 +47,7 @@ impl EmailNotifier {
                 .to
                 .parse()
                 .map_err(|e: lettre::address::AddressError| err(e.to_string()))?)
-            .subject(self.subject(report))
+            .subject(change_subject(report))
             .body(render_text(report))
             .map_err(|e| err(e.to_string()))
     }
@@ -98,10 +94,6 @@ impl EmailNotifier {
 }
 
 impl Notifier for EmailNotifier {
-    fn id(&self) -> &str {
-        "email"
-    }
-
     fn notify(&self, report: &ScanReport) -> Result<(), NotifyError> {
         if !report.has_changes() {
             return Ok(());

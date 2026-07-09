@@ -1,3 +1,6 @@
+//! XDG-aware config/data path resolution, `~` expansion, and symlink-free
+//! path normalization for matching user input against stored entries.
+
 use crate::error::{Error, Result};
 use directories::BaseDirs;
 use std::path::{Path, PathBuf};
@@ -8,6 +11,14 @@ pub fn home_dir() -> Result<PathBuf> {
         .ok_or(Error::NoHome)
 }
 
+/// Expand a leading `~` / `~/` to the home directory.
+///
+/// Intentionally infallible: it is called per-rule throughout discovery, and on
+/// the only supported platforms (Linux/macOS) `$HOME` is always set, so the
+/// `NoHome` fallback (returning the literal `~` path) is unreachable in
+/// practice. Threading a `Result` through discovery for that case would not
+/// earn its cost; a literal `~` path simply matches nothing, which is safe for
+/// a tripwire.
 pub fn expand_tilde(s: &str) -> PathBuf {
     if s == "~" {
         return home_dir().unwrap_or_else(|_| PathBuf::from("~"));

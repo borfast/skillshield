@@ -1,3 +1,6 @@
+//! Streaming SHA-256 hashing for regular files and one-hop symlink targets,
+//! with a configurable size guard that flags oversized files as unhashed.
+
 use crate::error::Result;
 use sha2::{Digest, Sha256};
 use std::fs::File;

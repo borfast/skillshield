@@ -1,3 +1,6 @@
+//! The `Entry` record for a single monitored file (path, kind, digest,
+//! symlink target, size/mtime) and its file/symlink kind.
+
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 

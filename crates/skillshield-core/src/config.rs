@@ -1,3 +1,6 @@
+//! User configuration loaded from the XDG config file, with defaults for every
+//! field so the tool runs with no config present.
+
 use crate::error::{Error, Result};
 use crate::paths;
 use serde::{Deserialize, Serialize};

@@ -1,3 +1,6 @@
+//! Walks the catalog's global locations and opted-in project roots to produce
+//! the current set of monitored entries. Never follows symlinked directories.
+
 use crate::catalog::{Catalog, MatchSpec, Rule, Scope};
 use crate::config::ScanConfig;
 use crate::entry::{Entry, EntryKind};

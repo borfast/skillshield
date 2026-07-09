@@ -1,3 +1,7 @@
+//! Notification channels: a `Notifier` trait, a static registry that builds
+//! the enabled channels from config, and a `dispatch` that runs them with
+//! per-channel failure isolation.
+
 pub mod desktop;
 pub mod email;
 pub mod report_file;
@@ -20,8 +24,12 @@ impl std::fmt::Display for NotifyError {
 }
 
 pub trait Notifier {
-    fn id(&self) -> &str;
     fn notify(&self, report: &ScanReport) -> std::result::Result<(), NotifyError>;
+}
+
+/// Short one-line subject shared by the desktop and email channels.
+pub fn change_subject(report: &ScanReport) -> String {
+    format!("SkillShield: {} change(s)", report.findings.len())
 }
 
 pub fn render_text(report: &ScanReport) -> String {
@@ -116,9 +124,6 @@ mod tests {
 
     struct Failing;
     impl Notifier for Failing {
-        fn id(&self) -> &str {
-            "failing"
-        }
         fn notify(&self, _r: &ScanReport) -> std::result::Result<(), NotifyError> {
             Err(NotifyError {
                 channel: "failing".into(),
@@ -128,9 +133,6 @@ mod tests {
     }
     struct Ok;
     impl Notifier for Ok {
-        fn id(&self) -> &str {
-            "ok"
-        }
         fn notify(&self, _r: &ScanReport) -> std::result::Result<(), NotifyError> {
             std::result::Result::Ok(())
         }

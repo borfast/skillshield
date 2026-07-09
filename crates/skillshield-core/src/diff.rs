@@ -1,3 +1,6 @@
+//! Compares a current scan against the baseline and produces the set of
+//! Added/Modified/Removed findings that drive reports and notifications.
+
 use crate::baseline::Baseline;
 use crate::discovery::Scan;
 use crate::entry::{Entry, EntryKind};
@@ -23,7 +26,7 @@ pub struct Finding {
     pub detail: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanDiff {
     pub findings: Vec<Finding>,
 }

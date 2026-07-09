@@ -17,10 +17,6 @@ impl Default for ReportFileNotifier {
 }
 
 impl Notifier for ReportFileNotifier {
-    fn id(&self) -> &str {
-        "report"
-    }
-
     fn notify(&self, report: &ScanReport) -> Result<(), NotifyError> {
         let err = |m: String| NotifyError {
             channel: "report".into(),
@@ -30,11 +26,12 @@ impl Notifier for ReportFileNotifier {
             .path
             .clone()
             .ok_or_else(|| err("no report path".into()))?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| err(e.to_string()))?;
-        }
+        let dir = path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+        std::fs::create_dir_all(&dir).map_err(|e| err(e.to_string()))?;
         let json = serde_json::to_vec_pretty(report).map_err(|e| err(e.to_string()))?;
-        let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
         let mut tmp = tempfile::NamedTempFile::new_in(&dir).map_err(|e| err(e.to_string()))?;
         tmp.write_all(&json).map_err(|e| err(e.to_string()))?;
         #[cfg(unix)]

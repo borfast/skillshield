@@ -1,4 +1,4 @@
-use super::{render_text, Notifier, NotifyError};
+use super::{change_subject, render_text, Notifier, NotifyError};
 use crate::report::ScanReport;
 
 pub struct DesktopNotifier;
@@ -8,10 +8,6 @@ pub fn graphical_session_available() -> bool {
 }
 
 impl Notifier for DesktopNotifier {
-    fn id(&self) -> &str {
-        "desktop"
-    }
-
     fn notify(&self, report: &ScanReport) -> Result<(), NotifyError> {
         let err = |m: String| NotifyError {
             channel: "desktop".into(),
@@ -20,9 +16,8 @@ impl Notifier for DesktopNotifier {
         if !report.has_changes() {
             return Ok(());
         }
-        let summary = format!("SkillShield: {} change(s)", report.findings.len());
         notify_rust::Notification::new()
-            .summary(&summary)
+            .summary(&change_subject(report))
             .body(&render_text(report))
             .show()
             .map_err(|e| err(e.to_string()))?;

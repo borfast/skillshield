@@ -1,3 +1,5 @@
+//! The crate-wide `Error` type and `Result` alias.
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]

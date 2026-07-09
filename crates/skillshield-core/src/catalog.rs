@@ -1,3 +1,6 @@
+//! The catalog of what to watch: match rules (exact path / glob / directory
+//! file-set) and the built-in defaults for known AI-agent artifacts.
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,3 +1,6 @@
+//! The structured scan report (findings, counts, scan errors, timestamp) that
+//! notification channels render.
+
 use crate::diff::{ChangeKind, Finding, ScanDiff};
 use crate::discovery::ScanError;
 use serde::{Deserialize, Serialize};

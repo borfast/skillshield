@@ -13,10 +13,6 @@ impl WebhookNotifier {
 }
 
 impl Notifier for WebhookNotifier {
-    fn id(&self) -> &str {
-        "webhook"
-    }
-
     fn notify(&self, report: &ScanReport) -> Result<(), NotifyError> {
         let err = |m: String| NotifyError {
             channel: "webhook".into(),

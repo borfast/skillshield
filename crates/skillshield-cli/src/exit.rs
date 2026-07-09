@@ -1,9 +1,7 @@
 pub struct Code;
 
 impl Code {
-    #[allow(dead_code)]
     pub const OK: i32 = 0;
-    #[allow(dead_code)]
     pub const CHANGES: i32 = 10;
     pub const ERROR: i32 = 1;
 }

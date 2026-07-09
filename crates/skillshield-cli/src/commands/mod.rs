@@ -21,7 +21,6 @@ pub fn run(command: Command) -> Result<i32, String> {
 }
 
 // helper reused by several commands
-#[allow(dead_code)]
 pub fn to_err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
@@ -29,4 +28,23 @@ pub fn to_err<E: std::fmt::Display>(e: E) -> String {
 #[allow(dead_code)]
 pub fn abs(path: &Path) -> std::path::PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+pub fn load_baseline_or_hint() -> Result<skillshield_core::baseline::Baseline, String> {
+    let path = skillshield_core::paths::baseline_path().map_err(to_err)?;
+    if !path.exists() {
+        return Err(format!(
+            "no baseline at {}. Run `skillshield init` first.",
+            path.display()
+        ));
+    }
+    skillshield_core::baseline::Baseline::load(&path).map_err(to_err)
+}
+
+pub fn discover_now(
+) -> Result<(skillshield_core::discovery::Scan, skillshield_core::config::Config), String> {
+    let cfg = skillshield_core::config::Config::load().map_err(to_err)?;
+    let catalog = skillshield_core::catalog::Catalog::builtin()
+        .apply(&cfg.catalog.disable, &cfg.catalog.extra_files);
+    Ok((skillshield_core::discovery::discover(&catalog, &cfg.scan), cfg))
 }

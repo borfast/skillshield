@@ -4,6 +4,7 @@ pub mod error;
 pub mod paths;
 pub mod entry;
 pub mod hashing;
+pub mod catalog;
 
 pub use error::{Error, Result};
 pub use entry::{Entry, EntryKind};

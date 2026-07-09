@@ -30,9 +30,17 @@ pub fn hash_file(path: &Path, max_bytes: u64) -> Result<HashOutcome> {
     let meta = std::fs::symlink_metadata(path)?;
     let size = meta.len();
     if size > max_bytes {
-        return Ok(HashOutcome { digest: None, size, unhashed: true });
+        return Ok(HashOutcome {
+            digest: None,
+            size,
+            unhashed: true,
+        });
     }
-    Ok(HashOutcome { digest: Some(stream_digest(path)?), size, unhashed: false })
+    Ok(HashOutcome {
+        digest: Some(stream_digest(path)?),
+        size,
+        unhashed: false,
+    })
 }
 
 /// Hash the regular-file contents a symlink resolves to (one dereference via
@@ -42,17 +50,35 @@ pub fn hash_symlink_target(link_path: &Path, max_bytes: u64) -> Result<HashOutco
     let meta = match std::fs::metadata(link_path) {
         Ok(m) => m,
         // Dangling or unreadable target: record target string only (no digest).
-        Err(_) => return Ok(HashOutcome { digest: None, size: 0, unhashed: false }),
+        Err(_) => {
+            return Ok(HashOutcome {
+                digest: None,
+                size: 0,
+                unhashed: false,
+            })
+        }
     };
     if !meta.file_type().is_file() {
         // Symlink to a directory or special file: do not traverse/hash.
-        return Ok(HashOutcome { digest: None, size: meta.len(), unhashed: false });
+        return Ok(HashOutcome {
+            digest: None,
+            size: meta.len(),
+            unhashed: false,
+        });
     }
     let size = meta.len();
     if size > max_bytes {
-        return Ok(HashOutcome { digest: None, size, unhashed: true });
+        return Ok(HashOutcome {
+            digest: None,
+            size,
+            unhashed: true,
+        });
     }
-    Ok(HashOutcome { digest: Some(stream_digest(link_path)?), size, unhashed: false })
+    Ok(HashOutcome {
+        digest: Some(stream_digest(link_path)?),
+        size,
+        unhashed: false,
+    })
 }
 
 #[cfg(test)]

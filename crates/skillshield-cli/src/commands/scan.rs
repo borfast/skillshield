@@ -16,5 +16,9 @@ pub fn run() -> Result<i32, String> {
         eprintln!("skillshield: notifier failure: {e}");
     }
 
-    Ok(if report.has_changes() { Code::CHANGES } else { Code::OK })
+    Ok(if report.has_changes() {
+        Code::CHANGES
+    } else {
+        Code::OK
+    })
 }

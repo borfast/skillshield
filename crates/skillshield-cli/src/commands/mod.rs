@@ -4,11 +4,11 @@ use skillshield_core::discovery::Scan;
 use std::path::Path;
 
 pub mod init;
+pub mod monitor;
+pub mod review;
 pub mod scan;
 pub mod status;
-pub mod review;
 pub mod trust;
-pub mod monitor;
 
 pub fn run(command: Command) -> Result<i32, String> {
     match command {
@@ -42,12 +42,20 @@ pub fn load_baseline_or_hint() -> Result<skillshield_core::baseline::Baseline, S
     skillshield_core::baseline::Baseline::load(&path).map_err(to_err)
 }
 
-pub fn discover_now(
-) -> Result<(skillshield_core::discovery::Scan, skillshield_core::config::Config), String> {
+pub fn discover_now() -> Result<
+    (
+        skillshield_core::discovery::Scan,
+        skillshield_core::config::Config,
+    ),
+    String,
+> {
     let cfg = skillshield_core::config::Config::load().map_err(to_err)?;
     let catalog = skillshield_core::catalog::Catalog::builtin()
         .apply(&cfg.catalog.disable, &cfg.catalog.extra_files);
-    Ok((skillshield_core::discovery::discover(&catalog, &cfg.scan), cfg))
+    Ok((
+        skillshield_core::discovery::discover(&catalog, &cfg.scan),
+        cfg,
+    ))
 }
 
 pub fn save_baseline(baseline: &Baseline) -> Result<(), String> {
@@ -98,15 +106,24 @@ mod tests {
 
     fn entry(path: &str, digest: &str) -> Entry {
         Entry {
-            path: path.into(), kind: EntryKind::File, digest: Some(digest.into()),
-            symlink_target: None, size: 1, mtime: 0, unhashed: false, source_rule: "r".into(),
+            path: path.into(),
+            kind: EntryKind::File,
+            digest: Some(digest.into()),
+            symlink_target: None,
+            size: 1,
+            mtime: 0,
+            unhashed: false,
+            source_rule: "r".into(),
         }
     }
 
     #[test]
     fn apply_added_upserts() {
         let mut b = Baseline::new(vec![]);
-        let scan = Scan { entries: vec![entry("/x", "sha256:1")], errors: vec![] };
+        let scan = Scan {
+            entries: vec![entry("/x", "sha256:1")],
+            errors: vec![],
+        };
         let changed = apply_finding(&mut b, &scan, std::path::Path::new("/x"));
         assert!(changed);
         assert!(b.contains_path(std::path::Path::new("/x")));
@@ -115,7 +132,10 @@ mod tests {
     #[test]
     fn apply_removed_deletes() {
         let mut b = Baseline::new(vec![entry("/gone", "sha256:1")]);
-        let scan = Scan { entries: vec![], errors: vec![] };
+        let scan = Scan {
+            entries: vec![],
+            errors: vec![],
+        };
         let changed = apply_finding(&mut b, &scan, std::path::Path::new("/gone"));
         assert!(changed);
         assert!(!b.contains_path(std::path::Path::new("/gone")));

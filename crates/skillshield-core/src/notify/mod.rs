@@ -60,14 +60,20 @@ pub fn build_notifiers(cfg: &NotifyConfig) -> Vec<Box<dyn Notifier>> {
             "desktop" => out.push(Box::new(crate::notify::desktop::DesktopNotifier)),
             "webhook" => {
                 if let Some(w) = &cfg.webhook {
-                    out.push(Box::new(crate::notify::webhook::WebhookNotifier::new(w.clone())));
+                    out.push(Box::new(crate::notify::webhook::WebhookNotifier::new(
+                        w.clone(),
+                    )));
                 } else {
-                    eprintln!("skillshield: 'webhook' channel enabled but [notify.webhook] is missing");
+                    eprintln!(
+                        "skillshield: 'webhook' channel enabled but [notify.webhook] is missing"
+                    );
                 }
             }
             "email" => {
                 if let Some(e) = &cfg.email {
-                    out.push(Box::new(crate::notify::email::EmailNotifier::new(e.clone())));
+                    out.push(Box::new(crate::notify::email::EmailNotifier::new(
+                        e.clone(),
+                    )));
                 } else {
                     eprintln!("skillshield: 'email' channel enabled but [notify.email] is missing");
                 }
@@ -110,15 +116,24 @@ mod tests {
 
     struct Failing;
     impl Notifier for Failing {
-        fn id(&self) -> &str { "failing" }
+        fn id(&self) -> &str {
+            "failing"
+        }
         fn notify(&self, _r: &ScanReport) -> std::result::Result<(), NotifyError> {
-            Err(NotifyError { channel: "failing".into(), message: "boom".into() })
+            Err(NotifyError {
+                channel: "failing".into(),
+                message: "boom".into(),
+            })
         }
     }
     struct Ok;
     impl Notifier for Ok {
-        fn id(&self) -> &str { "ok" }
-        fn notify(&self, _r: &ScanReport) -> std::result::Result<(), NotifyError> { std::result::Result::Ok(()) }
+        fn id(&self) -> &str {
+            "ok"
+        }
+        fn notify(&self, _r: &ScanReport) -> std::result::Result<(), NotifyError> {
+            std::result::Result::Ok(())
+        }
     }
 
     #[test]

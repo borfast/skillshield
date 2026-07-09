@@ -1,4 +1,4 @@
-use super::{NotifyError, Notifier};
+use super::{Notifier, NotifyError};
 use crate::config::WebhookConfig;
 use crate::report::ScanReport;
 
@@ -18,7 +18,10 @@ impl Notifier for WebhookNotifier {
     }
 
     fn notify(&self, report: &ScanReport) -> Result<(), NotifyError> {
-        let err = |m: String| NotifyError { channel: "webhook".into(), message: m };
+        let err = |m: String| NotifyError {
+            channel: "webhook".into(),
+            message: m,
+        };
         let mut req = ureq::post(&self.cfg.url);
         for (k, v) in &self.cfg.headers {
             req = req.set(k, v);

@@ -59,10 +59,8 @@ fn changed(old: &Entry, new: &Entry) -> Option<String> {
 }
 
 pub fn diff(baseline: &Baseline, scan: &Scan) -> ScanDiff {
-    let base: BTreeMap<&PathBuf, &Entry> =
-        baseline.entries.iter().map(|e| (&e.path, e)).collect();
-    let cur: BTreeMap<&PathBuf, &Entry> =
-        scan.entries.iter().map(|e| (&e.path, e)).collect();
+    let base: BTreeMap<&PathBuf, &Entry> = baseline.entries.iter().map(|e| (&e.path, e)).collect();
+    let cur: BTreeMap<&PathBuf, &Entry> = scan.entries.iter().map(|e| (&e.path, e)).collect();
 
     let mut findings = Vec::new();
 
@@ -120,24 +118,45 @@ mod tests {
 
     fn file(path: &str, digest: &str) -> Entry {
         Entry {
-            path: path.into(), kind: EntryKind::File, digest: Some(digest.into()),
-            symlink_target: None, size: 1, mtime: 0, unhashed: false, source_rule: "r".into(),
+            path: path.into(),
+            kind: EntryKind::File,
+            digest: Some(digest.into()),
+            symlink_target: None,
+            size: 1,
+            mtime: 0,
+            unhashed: false,
+            source_rule: "r".into(),
         }
     }
     fn scan(entries: Vec<Entry>) -> Scan {
-        Scan { entries, errors: vec![] }
+        Scan {
+            entries,
+            errors: vec![],
+        }
     }
 
     #[test]
     fn detects_added_modified_removed() {
         let base = Baseline::new(vec![file("/a", "sha256:1"), file("/b", "sha256:2")]);
-        let cur = scan(vec![file("/a", "sha256:1"), file("/b", "sha256:CHANGED"), file("/c", "sha256:3")]);
+        let cur = scan(vec![
+            file("/a", "sha256:1"),
+            file("/b", "sha256:CHANGED"),
+            file("/c", "sha256:3"),
+        ]);
         let d = diff(&base, &cur);
-        let by = |p: &str| d.findings.iter().find(|f| f.path == std::path::PathBuf::from(p)).unwrap();
+        let by = |p: &str| {
+            d.findings
+                .iter()
+                .find(|f| f.path.as_path() == std::path::Path::new(p))
+                .unwrap()
+        };
         assert_eq!(by("/c").change, ChangeKind::Added);
         assert_eq!(by("/b").change, ChangeKind::Modified);
         // /a unchanged → not reported
-        assert!(!d.findings.iter().any(|f| f.path == std::path::PathBuf::from("/a")));
+        assert!(!d
+            .findings
+            .iter()
+            .any(|f| f.path.as_path() == std::path::Path::new("/a")));
         assert_eq!(d.findings.len(), 2);
     }
 

@@ -17,7 +17,10 @@ pub fn run() -> Result<i32, String> {
     for f in &d.findings {
         print!(
             "{:?}  {}  [{}]  {}\n  Accept into baseline? [y/N/q] ",
-            f.change, f.path.display(), f.rule_id, f.detail
+            f.change,
+            f.path.display(),
+            f.rule_id,
+            f.detail
         );
         io::stdout().flush().ok();
         let mut ans = String::new();

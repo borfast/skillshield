@@ -1,4 +1,4 @@
-use super::{render_text, NotifyError, Notifier};
+use super::{render_text, Notifier, NotifyError};
 use crate::report::ScanReport;
 
 pub struct DesktopNotifier;
@@ -13,14 +13,14 @@ impl Notifier for DesktopNotifier {
     }
 
     fn notify(&self, report: &ScanReport) -> Result<(), NotifyError> {
-        let err = |m: String| NotifyError { channel: "desktop".into(), message: m };
+        let err = |m: String| NotifyError {
+            channel: "desktop".into(),
+            message: m,
+        };
         if !report.has_changes() {
             return Ok(());
         }
-        let summary = format!(
-            "SkillShield: {} change(s)",
-            report.findings.len()
-        );
+        let summary = format!("SkillShield: {} change(s)", report.findings.len());
         notify_rust::Notification::new()
             .summary(&summary)
             .body(&render_text(report))

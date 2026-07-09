@@ -23,7 +23,10 @@ struct OnDisk {
 impl Baseline {
     pub fn new(mut entries: Vec<Entry>) -> Self {
         entries.sort_by(|a, b| a.path.cmp(&b.path));
-        Baseline { version: CURRENT_VERSION, entries }
+        Baseline {
+            version: CURRENT_VERSION,
+            entries,
+        }
     }
 
     pub fn integrity_digest(&self) -> String {
@@ -60,7 +63,10 @@ impl Baseline {
                 disk.version
             )));
         }
-        let b = Baseline { version: disk.version, entries: disk.entries };
+        let b = Baseline {
+            version: disk.version,
+            entries: disk.entries,
+        };
         if b.integrity_digest() != disk.integrity {
             return Err(Error::Corrupt("baseline integrity digest mismatch".into()));
         }
@@ -133,7 +139,9 @@ mod tests {
     fn detects_tampering() {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("baseline.json");
-        Baseline::new(vec![e("/a", "sha256:1")]).save(&path).unwrap();
+        Baseline::new(vec![e("/a", "sha256:1")])
+            .save(&path)
+            .unwrap();
 
         // Tamper: flip a digest but leave the stored integrity digest alone.
         let text = std::fs::read_to_string(&path).unwrap();

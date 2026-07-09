@@ -1,4 +1,4 @@
-use super::{render_text, NotifyError, Notifier};
+use super::{render_text, Notifier, NotifyError};
 use crate::paths;
 use crate::report::ScanReport;
 use std::io::Write;
@@ -10,7 +10,9 @@ pub struct ReportFileNotifier {
 
 impl Default for ReportFileNotifier {
     fn default() -> Self {
-        ReportFileNotifier { path: paths::report_path().ok() }
+        ReportFileNotifier {
+            path: paths::report_path().ok(),
+        }
     }
 }
 
@@ -20,8 +22,14 @@ impl Notifier for ReportFileNotifier {
     }
 
     fn notify(&self, report: &ScanReport) -> Result<(), NotifyError> {
-        let err = |m: String| NotifyError { channel: "report".into(), message: m };
-        let path = self.path.clone().ok_or_else(|| err("no report path".into()))?;
+        let err = |m: String| NotifyError {
+            channel: "report".into(),
+            message: m,
+        };
+        let path = self
+            .path
+            .clone()
+            .ok_or_else(|| err("no report path".into()))?;
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| err(e.to_string()))?;
         }
@@ -51,7 +59,12 @@ impl Notifier for ReportFileNotifier {
             open_opts.mode(0o600);
         }
         if let Ok(mut f) = open_opts.open(&log) {
-            let _ = writeln!(f, "--- {} ---\n{}", report.generated_at, render_text(report));
+            let _ = writeln!(
+                f,
+                "--- {} ---\n{}",
+                report.generated_at,
+                render_text(report)
+            );
         }
         Ok(())
     }

@@ -1,4 +1,4 @@
-use super::{render_text, NotifyError, Notifier};
+use super::{render_text, Notifier, NotifyError};
 use crate::config::{EmailConfig, EmailTransport};
 use crate::report::ScanReport;
 use lettre::transport::smtp::authentication::Credentials;
@@ -11,7 +11,10 @@ pub struct EmailNotifier {
 }
 
 fn err(m: String) -> NotifyError {
-    NotifyError { channel: "email".into(), message: m }
+    NotifyError {
+        channel: "email".into(),
+        message: m,
+    }
 }
 
 impl EmailNotifier {
@@ -37,8 +40,17 @@ impl EmailNotifier {
     /// Structured `lettre` message for the SMTP transport.
     pub fn build_smtp_message(&self, report: &ScanReport) -> Result<Message, NotifyError> {
         Message::builder()
-            .from(self.cfg.from.parse().map_err(|e: lettre::address::AddressError| err(e.to_string()))?)
-            .to(self.cfg.to.parse().map_err(|e: lettre::address::AddressError| err(e.to_string()))?)
+            .from(
+                self.cfg
+                    .from
+                    .parse()
+                    .map_err(|e: lettre::address::AddressError| err(e.to_string()))?,
+            )
+            .to(self
+                .cfg
+                .to
+                .parse()
+                .map_err(|e: lettre::address::AddressError| err(e.to_string()))?)
             .subject(self.subject(report))
             .body(render_text(report))
             .map_err(|e| err(e.to_string()))
@@ -64,11 +76,9 @@ impl EmailNotifier {
     }
 
     fn send_smtp(&self, report: &ScanReport) -> Result<(), NotifyError> {
-        let smtp = self
-            .cfg
-            .smtp
-            .as_ref()
-            .ok_or_else(|| err("smtp transport selected but [notify.email.smtp] is missing".into()))?;
+        let smtp = self.cfg.smtp.as_ref().ok_or_else(|| {
+            err("smtp transport selected but [notify.email.smtp] is missing".into())
+        })?;
         let message = self.build_smtp_message(report)?;
         let mut builder = if smtp.starttls {
             SmtpTransport::starttls_relay(&smtp.host).map_err(|e| err(e.to_string()))?
@@ -79,7 +89,10 @@ impl EmailNotifier {
         if let (Some(u), Some(p)) = (&smtp.username, &smtp.password) {
             builder = builder.credentials(Credentials::new(u.clone(), p.clone()));
         }
-        builder.build().send(&message).map_err(|e| err(e.to_string()))?;
+        builder
+            .build()
+            .send(&message)
+            .map_err(|e| err(e.to_string()))?;
         Ok(())
     }
 }

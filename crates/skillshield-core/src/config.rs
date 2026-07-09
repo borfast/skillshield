@@ -3,7 +3,7 @@ use crate::paths;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub scan: ScanConfig,
@@ -92,16 +92,6 @@ pub struct WebhookConfig {
     pub url: String,
     #[serde(default)]
     pub headers: Vec<(String, String)>,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            scan: ScanConfig::default(),
-            catalog: CatalogConfig::default(),
-            notify: NotifyConfig::default(),
-        }
-    }
 }
 
 impl Default for ScanConfig {

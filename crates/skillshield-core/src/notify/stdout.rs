@@ -1,4 +1,4 @@
-use super::{render_text, NotifyError, Notifier};
+use super::{render_text, Notifier, NotifyError};
 use crate::report::ScanReport;
 
 pub struct StdoutNotifier;

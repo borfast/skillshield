@@ -2,7 +2,11 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
-#[command(name = "skillshield", version, about = "Tripwire for AI-agent config artifacts")]
+#[command(
+    name = "skillshield",
+    version,
+    about = "Tripwire for AI-agent config artifacts"
+)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -23,17 +27,11 @@ pub enum Command {
     /// Interactively accept/reject pending changes.
     Review,
     /// Accept a specific path into the baseline.
-    Trust {
-        path: PathBuf,
-    },
+    Trust { path: PathBuf },
     /// Add a project root: crawl once, record in config, trust findings.
-    Monitor {
-        path: PathBuf,
-    },
+    Monitor { path: PathBuf },
     /// Remove a project root from config and prune its baseline entries.
-    Unmonitor {
-        path: PathBuf,
-    },
+    Unmonitor { path: PathBuf },
 }
 
 #[cfg(test)]

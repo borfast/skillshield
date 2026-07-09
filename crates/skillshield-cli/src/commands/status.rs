@@ -10,5 +10,9 @@ pub fn run() -> Result<i32, String> {
     let d = diff(&baseline, &scan);
     let report = ScanReport::from_diff(&d, &scan.errors, now_secs());
     print!("{}", render_text(&report));
-    Ok(if report.has_changes() { Code::CHANGES } else { Code::OK })
+    Ok(if report.has_changes() {
+        Code::CHANGES
+    } else {
+        Code::OK
+    })
 }

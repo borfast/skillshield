@@ -17,7 +17,10 @@ pub fn run(path: &Path) -> Result<i32, String> {
         write_config(&cfg)?;
         println!("Added project root {} to config.", target.display());
     } else {
-        println!("{} already monitored; refreshing baseline.", target.display());
+        println!(
+            "{} already monitored; refreshing baseline.",
+            target.display()
+        );
     }
 
     // Discover with the updated config, trust everything under this root.
@@ -45,7 +48,10 @@ pub fn run_unmonitor(path: &Path) -> Result<i32, String> {
     let before = cfg.scan.project_roots.len();
     cfg.scan.project_roots.retain(|r| r != &target_str);
     if cfg.scan.project_roots.len() == before {
-        return Err(format!("{} is not a monitored project root.", target.display()));
+        return Err(format!(
+            "{} is not a monitored project root.",
+            target.display()
+        ));
     }
     write_config(&cfg)?;
 
@@ -54,9 +60,15 @@ pub fn run_unmonitor(path: &Path) -> Result<i32, String> {
         let mut baseline = Baseline::load(&baseline_path).map_err(to_err)?;
         let removed = baseline.remove_under(&target);
         baseline.save(&baseline_path).map_err(to_err)?;
-        println!("Removed {} and pruned {removed} baseline entry/entries.", target.display());
+        println!(
+            "Removed {} and pruned {removed} baseline entry/entries.",
+            target.display()
+        );
     } else {
-        println!("Removed {} from config (no baseline to prune).", target.display());
+        println!(
+            "Removed {} from config (no baseline to prune).",
+            target.display()
+        );
     }
     Ok(Code::OK)
 }

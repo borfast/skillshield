@@ -42,7 +42,10 @@ impl Collector {
         let meta = match std::fs::symlink_metadata(path) {
             Ok(m) => m,
             Err(e) => {
-                self.errors.push(ScanError { path: path.into(), message: e.to_string() });
+                self.errors.push(ScanError {
+                    path: path.into(),
+                    message: e.to_string(),
+                });
                 return;
             }
         };
@@ -55,20 +58,30 @@ impl Collector {
             let out = match hash_symlink_target(path, self.max_hash_bytes) {
                 Ok(out) => out,
                 Err(e) => {
-                    self.errors.push(ScanError { path: path.into(), message: e.to_string() });
-                    HashOutcome { digest: None, size: meta.len(), unhashed: false }
+                    self.errors.push(ScanError {
+                        path: path.into(),
+                        message: e.to_string(),
+                    });
+                    HashOutcome {
+                        digest: None,
+                        size: meta.len(),
+                        unhashed: false,
+                    }
                 }
             };
-            self.entries.insert(path.into(), Entry {
-                path: path.into(),
-                kind: EntryKind::Symlink,
-                digest: out.digest,
-                symlink_target: target,
-                size: out.size,
-                mtime: Self::mtime_secs(&meta),
-                unhashed: out.unhashed,
-                source_rule: rule_id.into(),
-            });
+            self.entries.insert(
+                path.into(),
+                Entry {
+                    path: path.into(),
+                    kind: EntryKind::Symlink,
+                    digest: out.digest,
+                    symlink_target: target,
+                    size: out.size,
+                    mtime: Self::mtime_secs(&meta),
+                    unhashed: out.unhashed,
+                    source_rule: rule_id.into(),
+                },
+            );
             return;
         }
         if !meta.file_type().is_file() {
@@ -76,18 +89,24 @@ impl Collector {
         }
         match hash_file(path, self.max_hash_bytes) {
             Ok(out) => {
-                self.entries.insert(path.into(), Entry {
-                    path: path.into(),
-                    kind: EntryKind::File,
-                    digest: out.digest,
-                    symlink_target: None,
-                    size: out.size,
-                    mtime: Self::mtime_secs(&meta),
-                    unhashed: out.unhashed,
-                    source_rule: rule_id.into(),
-                });
+                self.entries.insert(
+                    path.into(),
+                    Entry {
+                        path: path.into(),
+                        kind: EntryKind::File,
+                        digest: out.digest,
+                        symlink_target: None,
+                        size: out.size,
+                        mtime: Self::mtime_secs(&meta),
+                        unhashed: out.unhashed,
+                        source_rule: rule_id.into(),
+                    },
+                );
             }
-            Err(e) => self.errors.push(ScanError { path: path.into(), message: e.to_string() }),
+            Err(e) => self.errors.push(ScanError {
+                path: path.into(),
+                message: e.to_string(),
+            }),
         }
     }
 
@@ -106,7 +125,10 @@ impl Collector {
                 }
                 Err(err) => {
                     let p = err.path().map(|p| p.to_path_buf()).unwrap_or_default();
-                    self.errors.push(ScanError { path: p, message: err.to_string() });
+                    self.errors.push(ScanError {
+                        path: p,
+                        message: err.to_string(),
+                    });
                 }
             }
         }
@@ -119,6 +141,10 @@ pub fn discover(catalog: &Catalog, cfg: &ScanConfig) -> Scan {
         errors: Vec::new(),
         max_hash_bytes: cfg.max_hash_bytes,
     };
+
+    // Fail loud on invalid user-supplied glob patterns rather than silently
+    // matching/ignoring nothing (which would be a blind spot for a tripwire).
+    validate_globs(catalog, cfg, &mut col.errors);
 
     // Global rules: resolve directly.
     for rule in catalog.rules.iter().filter(|r| r.scope == Scope::Global) {
@@ -147,10 +173,11 @@ pub fn discover(catalog: &Catalog, cfg: &ScanConfig) -> Scan {
                                     }
                                 }
                                 Err(err) => {
-                                    let p =
-                                        err.path().map(|p| p.to_path_buf()).unwrap_or_default();
-                                    col.errors
-                                        .push(ScanError { path: p, message: err.to_string() });
+                                    let p = err.path().map(|p| p.to_path_buf()).unwrap_or_default();
+                                    col.errors.push(ScanError {
+                                        path: p,
+                                        message: err.to_string(),
+                                    });
                                 }
                             }
                         }
@@ -161,8 +188,11 @@ pub fn discover(catalog: &Catalog, cfg: &ScanConfig) -> Scan {
     }
 
     // Project rules: crawl each opted-in root once, match project rules per file.
-    let project_rules: Vec<&Rule> =
-        catalog.rules.iter().filter(|r| r.scope == Scope::Project).collect();
+    let project_rules: Vec<&Rule> = catalog
+        .rules
+        .iter()
+        .filter(|r| r.scope == Scope::Project)
+        .collect();
     if !project_rules.is_empty() {
         let ignore = build_globset(&cfg.ignore).ok();
         for root in &cfg.project_roots {
@@ -179,7 +209,10 @@ pub fn discover(catalog: &Catalog, cfg: &ScanConfig) -> Scan {
                     Ok(e) => e,
                     Err(err) => {
                         let p = err.path().map(|p| p.to_path_buf()).unwrap_or_default();
-                        col.errors.push(ScanError { path: p, message: err.to_string() });
+                        col.errors.push(ScanError {
+                            path: p,
+                            message: err.to_string(),
+                        });
                         continue;
                     }
                 };
@@ -203,7 +236,10 @@ pub fn discover(catalog: &Catalog, cfg: &ScanConfig) -> Scan {
     }
 
     let entries: Vec<Entry> = col.entries.into_values().collect();
-    Scan { entries, errors: col.errors }
+    Scan {
+        entries,
+        errors: col.errors,
+    }
 }
 
 fn project_rule_matches(rule: &Rule, rel: &Path, _abs: &Path) -> bool {
@@ -231,6 +267,30 @@ fn build_globset(patterns: &[String]) -> Result<globset::GlobSet, globset::Error
     b.build()
 }
 
+/// Compile every user-relevant glob once up front and record a `ScanError` for
+/// any that fail, so a misconfigured `scan.ignore` or `catalog.extra_files`
+/// pattern surfaces loudly instead of silently matching nothing. Built-in
+/// catalog patterns are valid, so in practice this only fires on user config.
+fn validate_globs(catalog: &Catalog, cfg: &ScanConfig, errors: &mut Vec<ScanError>) {
+    let mut check = |pattern: &str| {
+        if let Err(e) = Glob::new(pattern) {
+            errors.push(ScanError {
+                path: PathBuf::from(pattern),
+                message: format!("invalid glob pattern: {e}"),
+            });
+        }
+    };
+    for pattern in &cfg.ignore {
+        check(pattern);
+    }
+    for rule in &catalog.rules {
+        match &rule.spec {
+            MatchSpec::Glob(g) | MatchSpec::DirFileSet(g) => check(g),
+            MatchSpec::ExactPath(_) => {}
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,6 +301,23 @@ mod tests {
     fn write(p: &std::path::Path, s: &str) {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, s).unwrap();
+    }
+
+    #[test]
+    fn invalid_ignore_glob_is_reported_not_swallowed() {
+        // An unclosed character class is an invalid glob.
+        let cfg = ScanConfig {
+            ignore: vec!["[invalid".into()],
+            ..ScanConfig::default()
+        };
+        let scan = discover(&Catalog { rules: vec![] }, &cfg);
+        assert!(
+            scan.errors
+                .iter()
+                .any(|e| e.message.contains("invalid glob")),
+            "expected an invalid-glob ScanError, got: {:?}",
+            scan.errors
+        );
     }
 
     #[test]
@@ -292,7 +369,11 @@ mod tests {
             }],
         };
         let scan = discover(&cat, &ScanConfig::default());
-        let link = scan.entries.iter().find(|e| e.path.ends_with("link.md")).unwrap();
+        let link = scan
+            .entries
+            .iter()
+            .find(|e| e.path.ends_with("link.md"))
+            .unwrap();
         assert_eq!(link.kind, EntryKind::Symlink);
         assert_eq!(link.symlink_target.as_deref(), Some("real.md"));
         // one-hop content hash of "real.md" (contents "x") is present
@@ -321,7 +402,9 @@ mod tests {
         let scan = discover(&cat, &cfg);
         let paths: Vec<_> = scan.entries.iter().map(|e| e.path.clone()).collect();
         assert!(paths.contains(&root.join("proj/AGENTS.md")));
-        assert!(!paths.iter().any(|p| p.to_string_lossy().contains("node_modules")));
+        assert!(!paths
+            .iter()
+            .any(|p| p.to_string_lossy().contains("node_modules")));
     }
 
     #[test]

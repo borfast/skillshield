@@ -7,7 +7,8 @@ pub struct Group {
 
 pub fn group_entries(entries: &[Entry]) -> Vec<Group> {
     let mut order: Vec<String> = Vec::new();
-    let mut groups: std::collections::HashMap<String, Vec<usize>> = std::collections::HashMap::new();
+    let mut groups: std::collections::HashMap<String, Vec<usize>> =
+        std::collections::HashMap::new();
     for (i, e) in entries.iter().enumerate() {
         let key = e.source_rule.clone();
         if !groups.contains_key(&key) {
@@ -31,14 +32,24 @@ mod tests {
 
     fn e(path: &str, rule: &str) -> Entry {
         Entry {
-            path: path.into(), kind: EntryKind::File, digest: Some("sha256:1".into()),
-            symlink_target: None, size: 1, mtime: 0, unhashed: false, source_rule: rule.into(),
+            path: path.into(),
+            kind: EntryKind::File,
+            digest: Some("sha256:1".into()),
+            symlink_target: None,
+            size: 1,
+            mtime: 0,
+            unhashed: false,
+            source_rule: rule.into(),
         }
     }
 
     #[test]
     fn groups_by_source_rule() {
-        let entries = vec![e("/a", "claude.skills"), e("/b", "claude.skills"), e("/c", "codex.home")];
+        let entries = vec![
+            e("/a", "claude.skills"),
+            e("/b", "claude.skills"),
+            e("/c", "codex.home"),
+        ];
         let groups = group_entries(&entries);
         assert_eq!(groups.len(), 2);
         assert_eq!(groups[0].key, "claude.skills");

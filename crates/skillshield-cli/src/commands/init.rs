@@ -25,7 +25,11 @@ pub fn run(force: bool) -> Result<i32, String> {
         println!("No agent artifacts found. Nothing to baseline yet.");
     }
     let groups = group_entries(&scan.entries);
-    println!("Found {} file(s) across {} group(s):", scan.entries.len(), groups.len());
+    println!(
+        "Found {} file(s) across {} group(s):",
+        scan.entries.len(),
+        groups.len()
+    );
     for g in &groups {
         println!("  [{}] {} file(s)", g.key, g.entries_idx.len());
     }
@@ -65,7 +69,10 @@ fn maybe_setup_desktop(cfg: &Config) -> Result<(), String> {
     if !cfg.notify.channels.iter().any(|c| c == "desktop") {
         cfg.notify.channels.push("desktop".into());
         write_config(&cfg)?;
-        println!("Enabled 'desktop' notifications in {}", config_path.display());
+        println!(
+            "Enabled 'desktop' notifications in {}",
+            config_path.display()
+        );
     }
     // Send a one-off test notification.
     let _ = notify_rust::Notification::new()

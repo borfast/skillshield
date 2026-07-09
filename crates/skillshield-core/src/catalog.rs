@@ -28,7 +28,9 @@ pub struct Catalog {
 
 impl Catalog {
     pub fn builtin() -> Self {
-        Catalog { rules: default_rules() }
+        Catalog {
+            rules: default_rules(),
+        }
     }
 
     pub fn apply(mut self, disable: &[String], extra_files: &[String]) -> Self {
@@ -46,44 +48,154 @@ impl Catalog {
 }
 
 fn global(id: &str, desc: &str, spec: MatchSpec) -> Rule {
-    Rule { id: id.into(), description: desc.into(), spec, scope: Scope::Global }
+    Rule {
+        id: id.into(),
+        description: desc.into(),
+        spec,
+        scope: Scope::Global,
+    }
 }
 
 fn project(id: &str, desc: &str, spec: MatchSpec) -> Rule {
-    Rule { id: id.into(), description: desc.into(), spec, scope: Scope::Project }
+    Rule {
+        id: id.into(),
+        description: desc.into(),
+        spec,
+        scope: Scope::Project,
+    }
 }
 
 pub fn default_rules() -> Vec<Rule> {
     use MatchSpec::*;
     vec![
         // ---- Global locations ----
-        global("claude.home", "Claude home top-level files", DirFileSet("~/.claude/".into())),
-        global("claude.skills", "Claude skills", DirFileSet("~/.claude/skills/".into())),
-        global("claude.plugins", "Claude plugins & marketplaces", DirFileSet("~/.claude/plugins/".into())),
-        global("claude.commands", "Claude commands", DirFileSet("~/.claude/commands/".into())),
-        global("claude.agents", "Claude agents", DirFileSet("~/.claude/agents/".into())),
-        global("claude.md.home", "Global CLAUDE.md", ExactPath("~/.claude/CLAUDE.md".into())),
-        global("claude.settings", "Claude settings", Glob("~/.claude/settings*.json".into())),
-        global("claude.mcp", "Claude MCP/project registry", ExactPath("~/.claude.json".into())),
-        global("claude.config.xdg", "Claude XDG config", DirFileSet("~/.config/claude/".into())),
+        global(
+            "claude.home",
+            "Claude home top-level files",
+            DirFileSet("~/.claude/".into()),
+        ),
+        global(
+            "claude.skills",
+            "Claude skills",
+            DirFileSet("~/.claude/skills/".into()),
+        ),
+        global(
+            "claude.plugins",
+            "Claude plugins & marketplaces",
+            DirFileSet("~/.claude/plugins/".into()),
+        ),
+        global(
+            "claude.commands",
+            "Claude commands",
+            DirFileSet("~/.claude/commands/".into()),
+        ),
+        global(
+            "claude.agents",
+            "Claude agents",
+            DirFileSet("~/.claude/agents/".into()),
+        ),
+        global(
+            "claude.md.home",
+            "Global CLAUDE.md",
+            ExactPath("~/.claude/CLAUDE.md".into()),
+        ),
+        global(
+            "claude.settings",
+            "Claude settings",
+            Glob("~/.claude/settings*.json".into()),
+        ),
+        global(
+            "claude.mcp",
+            "Claude MCP/project registry",
+            ExactPath("~/.claude.json".into()),
+        ),
+        global(
+            "claude.config.xdg",
+            "Claude XDG config",
+            DirFileSet("~/.config/claude/".into()),
+        ),
         global("codex.home", "Codex home", DirFileSet("~/.codex/".into())),
-        global("codex.config.xdg", "Codex XDG config", DirFileSet("~/.config/codex/".into())),
-        global("gemini.home", "Gemini home", DirFileSet("~/.gemini/".into())),
-        global("gemini.md.home", "Global GEMINI.md", ExactPath("~/.gemini/GEMINI.md".into())),
-        global("gemini.config.xdg", "Gemini XDG config", DirFileSet("~/.config/gemini/".into())),
-        global("cursor.home", "Cursor home (rules, MCP)", DirFileSet("~/.cursor/".into())),
-        global("copilot.config.xdg", "GitHub Copilot config", DirFileSet("~/.config/github-copilot/".into())),
-        global("mcp.config.xdg", "MCP XDG config", DirFileSet("~/.config/mcp/".into())),
+        global(
+            "codex.config.xdg",
+            "Codex XDG config",
+            DirFileSet("~/.config/codex/".into()),
+        ),
+        global(
+            "gemini.home",
+            "Gemini home",
+            DirFileSet("~/.gemini/".into()),
+        ),
+        global(
+            "gemini.md.home",
+            "Global GEMINI.md",
+            ExactPath("~/.gemini/GEMINI.md".into()),
+        ),
+        global(
+            "gemini.config.xdg",
+            "Gemini XDG config",
+            DirFileSet("~/.config/gemini/".into()),
+        ),
+        global(
+            "cursor.home",
+            "Cursor home (rules, MCP)",
+            DirFileSet("~/.cursor/".into()),
+        ),
+        global(
+            "copilot.config.xdg",
+            "GitHub Copilot config",
+            DirFileSet("~/.config/github-copilot/".into()),
+        ),
+        global(
+            "mcp.config.xdg",
+            "MCP XDG config",
+            DirFileSet("~/.config/mcp/".into()),
+        ),
         // ---- Project artifact patterns ----
-        project("proj.claude.md", "Project CLAUDE.md", Glob("**/CLAUDE.md".into())),
-        project("proj.claude.local", "Project CLAUDE.local.md", Glob("**/CLAUDE.local.md".into())),
-        project("proj.agents.md", "Project AGENTS.md", Glob("**/AGENTS.md".into())),
-        project("proj.gemini.md", "Project GEMINI.md", Glob("**/GEMINI.md".into())),
-        project("proj.claude.dir", "Project .claude directory", DirFileSet("**/.claude/".into())),
-        project("proj.cursor.dir", "Project .cursor directory", DirFileSet("**/.cursor/".into())),
-        project("proj.cursorrules", "Project .cursorrules", Glob("**/.cursorrules".into())),
-        project("proj.mcp.json", "Project .mcp.json", Glob("**/.mcp.json".into())),
-        project("proj.github.copilot", "Copilot instructions", Glob("**/.github/copilot-instructions.md".into())),
+        project(
+            "proj.claude.md",
+            "Project CLAUDE.md",
+            Glob("**/CLAUDE.md".into()),
+        ),
+        project(
+            "proj.claude.local",
+            "Project CLAUDE.local.md",
+            Glob("**/CLAUDE.local.md".into()),
+        ),
+        project(
+            "proj.agents.md",
+            "Project AGENTS.md",
+            Glob("**/AGENTS.md".into()),
+        ),
+        project(
+            "proj.gemini.md",
+            "Project GEMINI.md",
+            Glob("**/GEMINI.md".into()),
+        ),
+        project(
+            "proj.claude.dir",
+            "Project .claude directory",
+            DirFileSet("**/.claude/".into()),
+        ),
+        project(
+            "proj.cursor.dir",
+            "Project .cursor directory",
+            DirFileSet("**/.cursor/".into()),
+        ),
+        project(
+            "proj.cursorrules",
+            "Project .cursorrules",
+            Glob("**/.cursorrules".into()),
+        ),
+        project(
+            "proj.mcp.json",
+            "Project .mcp.json",
+            Glob("**/.mcp.json".into()),
+        ),
+        project(
+            "proj.github.copilot",
+            "Copilot instructions",
+            Glob("**/.github/copilot-instructions.md".into()),
+        ),
     ]
 }
 

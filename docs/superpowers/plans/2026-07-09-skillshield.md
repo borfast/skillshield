@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Rust edition **2021**, MSRV **1.74+**.
-- Dependency floors: `clap` 4, `serde` 1, `serde_json` 1, `toml` 0.8, `sha2` 0.10, `walkdir` 2, `globset` 0.4, `directories` 5, `notify-rust` 4, `ureq` 2 (with `json` feature), `thiserror` 1, `tempfile` 3.
+- Dependency floors: `clap` 4, `serde` 1, `serde_json` 1, `toml` 0.8, `sha2` 0.10, `walkdir` 2, `globset` 0.4, `directories` 5, `notify-rust` 4, `ureq` 2 (with `json` feature), `lettre` 0.11 (rustls TLS backend, no OpenSSL system dep), `thiserror` 1, `tempfile` 3.
 - **Never follow symlinks** anywhere in the filesystem walk.
 - **`scan` and `status` are strictly read-only** against the baseline — they must never write it.
 - All state files (`baseline.json`, `config.toml`, `last-report.json`) written **atomically** (temp file + rename) with `0600` permissions, under XDG dirs (`$XDG_CONFIG_HOME`/`$XDG_DATA_HOME` with `~/.config`, `~/.local/share` fallbacks).
@@ -21,7 +21,7 @@
 - **Nothing user-specific in defaults:** `project_roots` defaults to empty.
 - TDD throughout: failing test first, minimal implementation, passing test, commit. Run `cargo test` from the workspace root.
 
-**Scope note for reviewer:** The spec lists email supporting "local sendmail or SMTP". This plan implements the **sendmail shell-out** path only (Task 10); SMTP-via-`lettre` is deliberately deferred as a follow-up to avoid a heavy dependency. Flag if SMTP is required for v1.
+**Email transports:** The email channel supports both **sendmail shell-out** and **SMTP** (via `lettre` with a rustls TLS backend). The transport is selected by `[notify.email].transport` (`"sendmail"` default, or `"smtp"`). See Tasks 5 and 10.
 
 ---
 
@@ -66,6 +66,7 @@ globset = "0.4"
 directories = "5"
 notify-rust = "4"
 ureq = { version = "2", features = ["json"] }
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "rustls-tls", "hostname"] }
 thiserror = "1"
 tempfile = "3"
 clap = { version = "4", features = ["derive"] }
@@ -91,6 +92,7 @@ globset.workspace = true
 directories.workspace = true
 notify-rust.workspace = true
 ureq.workspace = true
+lettre.workspace = true
 thiserror.workspace = true
 tempfile.workspace = true
 
@@ -679,7 +681,9 @@ git commit -m "feat(core): built-in catalog of agent artifacts"
   - `config::ScanConfig { follow_symlinks: bool, max_hash_bytes: u64, project_roots: Vec<String>, project_max_depth: usize, ignore: Vec<String> }`.
   - `config::CatalogConfig { extra_files: Vec<String>, disable: Vec<String> }`.
   - `config::NotifyConfig { channels: Vec<String>, email: Option<EmailConfig>, webhook: Option<WebhookConfig> }`.
-  - `config::EmailConfig { to: String, from: String, sendmail_path: String }`.
+  - `config::EmailTransport` (`Sendmail | Smtp`, serde `lowercase`).
+  - `config::EmailConfig { to: String, from: String, transport: EmailTransport, sendmail_path: String, smtp: Option<SmtpConfig> }`.
+  - `config::SmtpConfig { host: String, port: u16, username: Option<String>, password: Option<String>, starttls: bool }`.
   - `config::WebhookConfig { url: String, headers: Vec<(String, String)> }`.
   - `Config::load_from(path: &Path) -> Result<Config>` (returns defaults if the file is absent).
   - `Config::load() -> Result<Config>` (uses `paths::config_path()`).
@@ -767,16 +771,52 @@ pub struct NotifyConfig {
     pub webhook: Option<WebhookConfig>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum EmailTransport {
+    Sendmail,
+    Smtp,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmailConfig {
     pub to: String,
     pub from: String,
+    #[serde(default = "default_transport")]
+    pub transport: EmailTransport,
     #[serde(default = "default_sendmail")]
     pub sendmail_path: String,
+    #[serde(default)]
+    pub smtp: Option<SmtpConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmtpConfig {
+    pub host: String,
+    #[serde(default = "default_smtp_port")]
+    pub port: u16,
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub password: Option<String>,
+    #[serde(default = "default_true")]
+    pub starttls: bool,
+}
+
+fn default_transport() -> EmailTransport {
+    EmailTransport::Sendmail
 }
 
 fn default_sendmail() -> String {
     "/usr/sbin/sendmail".to_string()
+}
+
+fn default_smtp_port() -> u16 {
+    587
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2022,7 +2062,7 @@ git commit -m "feat(core): notifier trait, registry, report+stdout channels"
 - Produces:
   - `notify::desktop::DesktopNotifier` (uses `notify-rust`; on non-graphical failure returns a `NotifyError` — dispatch isolates it).
   - `notify::webhook::WebhookNotifier::new(cfg: WebhookConfig)` — POSTs the JSON `ScanReport` to `cfg.url` with `cfg.headers`.
-  - `notify::email::EmailNotifier::new(cfg: EmailConfig)` — pipes a plaintext message to `cfg.sendmail_path -t`.
+  - `notify::email::EmailNotifier::new(cfg: EmailConfig)` — on `notify`, dispatches by `cfg.transport`: `Sendmail` pipes a plaintext RFC-822 message to `cfg.sendmail_path -t`; `Smtp` builds a `lettre::Message` and sends it via `SmtpTransport` (STARTTLS on `starttls = true`, else implicit TLS), applying credentials when both `username` and `password` are set.
   - `notify::desktop::graphical_session_available() -> bool` — true if `$DISPLAY` or `$WAYLAND_DISPLAY` is set (used by `init` in Task 12).
 
 - [ ] **Step 1: Write failing tests**
@@ -2055,15 +2095,34 @@ mod tests {
     use crate::diff::ScanDiff;
     use crate::report::ScanReport;
 
+    use crate::config::EmailTransport;
+
+    fn base_cfg() -> EmailConfig {
+        EmailConfig {
+            to: "me@example.com".into(),
+            from: "ss@host.example".into(),
+            transport: EmailTransport::Sendmail,
+            sendmail_path: "/bin/true".into(),
+            smtp: None,
+        }
+    }
+
     #[test]
     fn builds_rfc822_message_with_headers() {
-        let cfg = EmailConfig { to: "me@example.com".into(), from: "ss@host".into(), sendmail_path: "/bin/true".into() };
-        let n = EmailNotifier::new(cfg);
+        let n = EmailNotifier::new(base_cfg());
         let report = ScanReport::from_diff(&ScanDiff { findings: vec![] }, &[], 42);
         let msg = n.build_message(&report);
         assert!(msg.starts_with("To: me@example.com\r\n"));
-        assert!(msg.contains("From: ss@host\r\n"));
+        assert!(msg.contains("From: ss@host.example\r\n"));
         assert!(msg.contains("Subject: SkillShield"));
+    }
+
+    #[test]
+    fn builds_lettre_message_for_smtp() {
+        let n = EmailNotifier::new(base_cfg());
+        let report = ScanReport::from_diff(&ScanDiff { findings: vec![] }, &[], 42);
+        // Valid addresses parse into a lettre Message without error.
+        assert!(n.build_smtp_message(&report).is_ok());
     }
 }
 ```
@@ -2148,8 +2207,10 @@ impl Notifier for WebhookNotifier {
 
 ```rust
 use super::{render_text, NotifyError, Notifier};
-use crate::config::EmailConfig;
+use crate::config::{EmailConfig, EmailTransport};
 use crate::report::ScanReport;
+use lettre::transport::smtp::authentication::Credentials;
+use lettre::{Message, SmtpTransport, Transport};
 use std::io::Write;
 use std::process::{Command, Stdio};
 
@@ -2157,32 +2218,41 @@ pub struct EmailNotifier {
     cfg: EmailConfig,
 }
 
+fn err(m: String) -> NotifyError {
+    NotifyError { channel: "email".into(), message: m }
+}
+
 impl EmailNotifier {
     pub fn new(cfg: EmailConfig) -> Self {
         EmailNotifier { cfg }
     }
 
+    fn subject(&self, report: &ScanReport) -> String {
+        format!("SkillShield: {} change(s)", report.findings.len())
+    }
+
+    /// Plaintext RFC-822 message piped to `sendmail -t`.
     pub fn build_message(&self, report: &ScanReport) -> String {
         format!(
-            "To: {}\r\nFrom: {}\r\nSubject: SkillShield: {} change(s)\r\n\r\n{}",
+            "To: {}\r\nFrom: {}\r\nSubject: {}\r\n\r\n{}",
             self.cfg.to,
             self.cfg.from,
-            report.findings.len(),
+            self.subject(report),
             render_text(report)
         )
     }
-}
 
-impl Notifier for EmailNotifier {
-    fn id(&self) -> &str {
-        "email"
+    /// Structured `lettre` message for the SMTP transport.
+    pub fn build_smtp_message(&self, report: &ScanReport) -> Result<Message, NotifyError> {
+        Message::builder()
+            .from(self.cfg.from.parse().map_err(|e: lettre::address::AddressError| err(e.to_string()))?)
+            .to(self.cfg.to.parse().map_err(|e: lettre::address::AddressError| err(e.to_string()))?)
+            .subject(self.subject(report))
+            .body(render_text(report))
+            .map_err(|e| err(e.to_string()))
     }
 
-    fn notify(&self, report: &ScanReport) -> Result<(), NotifyError> {
-        let err = |m: String| NotifyError { channel: "email".into(), message: m };
-        if !report.has_changes() {
-            return Ok(());
-        }
+    fn send_sendmail(&self, report: &ScanReport) -> Result<(), NotifyError> {
         let mut child = Command::new(&self.cfg.sendmail_path)
             .arg("-t")
             .stdin(Stdio::piped())
@@ -2200,8 +2270,46 @@ impl Notifier for EmailNotifier {
         }
         Ok(())
     }
+
+    fn send_smtp(&self, report: &ScanReport) -> Result<(), NotifyError> {
+        let smtp = self
+            .cfg
+            .smtp
+            .as_ref()
+            .ok_or_else(|| err("smtp transport selected but [notify.email.smtp] is missing".into()))?;
+        let message = self.build_smtp_message(report)?;
+        let mut builder = if smtp.starttls {
+            SmtpTransport::starttls_relay(&smtp.host).map_err(|e| err(e.to_string()))?
+        } else {
+            SmtpTransport::relay(&smtp.host).map_err(|e| err(e.to_string()))?
+        };
+        builder = builder.port(smtp.port);
+        if let (Some(u), Some(p)) = (&smtp.username, &smtp.password) {
+            builder = builder.credentials(Credentials::new(u.clone(), p.clone()));
+        }
+        builder.build().send(&message).map_err(|e| err(e.to_string()))?;
+        Ok(())
+    }
+}
+
+impl Notifier for EmailNotifier {
+    fn id(&self) -> &str {
+        "email"
+    }
+
+    fn notify(&self, report: &ScanReport) -> Result<(), NotifyError> {
+        if !report.has_changes() {
+            return Ok(());
+        }
+        match self.cfg.transport {
+            EmailTransport::Sendmail => self.send_sendmail(report),
+            EmailTransport::Smtp => self.send_smtp(report),
+        }
+    }
 }
 ```
+
+**TLS backend note:** the workspace pins `lettre` to the `rustls-tls` feature (no OpenSSL system dependency — better for a distributed binary). If a `rustls` crypto-provider error surfaces at build or first send with the pinned `lettre` version, fall back to `native-tls`: change the `lettre` feature list in the root `Cargo.toml` to `["builder", "smtp-transport", "native-tls", "hostname"]`. No code changes are needed — `SmtpTransport::relay`/`starttls_relay` are backend-agnostic.
 
 - [ ] **Step 4: Enable the channels in `notify/mod.rs`**
 
@@ -3262,6 +3370,33 @@ skillshield review               # accept/reject pending changes
 
 Config: `~/.config/skillshield/config.toml`.
 State: `~/.local/share/skillshield/{baseline.json,last-report.json}`.
+
+### Notification channels
+
+Enable channels in `[notify].channels`; each has its own table. Email supports
+`sendmail` (default) or `smtp`:
+
+```toml
+[notify]
+channels = ["report", "stdout", "email"]
+
+[notify.email]
+to = "me@example.com"
+from = "skillshield@myhost"
+transport = "smtp"           # or "sendmail"
+
+[notify.email.smtp]
+host = "smtp.example.com"
+port = 587
+username = "me@example.com"
+password = "app-password"
+starttls = true
+
+# Generic webhook (ntfy/Slack/Telegram/Discord):
+[notify.webhook]
+url = "https://ntfy.sh/my-topic"
+headers = [["Title", "SkillShield alert"]]
+```
 
 See `packaging/` for Systemd/cron scheduling.
 ```

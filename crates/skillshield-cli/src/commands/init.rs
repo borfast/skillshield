@@ -1,4 +1,4 @@
-use crate::commands::to_err;
+use crate::commands::{to_err, write_config};
 use crate::review_ui::group_entries;
 use skillshield_core::baseline::Baseline;
 use skillshield_core::catalog::Catalog;
@@ -64,7 +64,7 @@ fn maybe_setup_desktop(cfg: &Config) -> Result<(), String> {
     let mut cfg = cfg.clone();
     if !cfg.notify.channels.iter().any(|c| c == "desktop") {
         cfg.notify.channels.push("desktop".into());
-        write_config(&config_path, &cfg)?;
+        write_config(&cfg)?;
         println!("Enabled 'desktop' notifications in {}", config_path.display());
     }
     // Send a one-off test notification.
@@ -73,23 +73,6 @@ fn maybe_setup_desktop(cfg: &Config) -> Result<(), String> {
         .body("Desktop notifications are working.")
         .show();
     println!("Sent a test desktop notification (check your notifications).");
-    Ok(())
-}
-
-fn write_config(path: &std::path::Path, cfg: &Config) -> Result<(), String> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(to_err)?;
-    }
-    let text = toml::to_string_pretty(cfg).map_err(to_err)?;
-    let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
-    let mut tmp = tempfile::NamedTempFile::new_in(&dir).map_err(to_err)?;
-    tmp.write_all(text.as_bytes()).map_err(to_err)?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o600)).map_err(to_err)?;
-    }
-    tmp.persist(path).map_err(|e| to_err(e.error))?;
     Ok(())
 }
 

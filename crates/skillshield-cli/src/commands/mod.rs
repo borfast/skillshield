@@ -55,6 +55,27 @@ pub fn save_baseline(baseline: &Baseline) -> Result<(), String> {
     baseline.save(&path).map_err(to_err)
 }
 
+/// Atomically write the config (0600) to `paths::config_path()`.
+pub fn write_config(cfg: &skillshield_core::config::Config) -> Result<(), String> {
+    use std::io::Write;
+    let path = skillshield_core::paths::config_path().map_err(to_err)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(to_err)?;
+    }
+    let text = toml::to_string_pretty(cfg).map_err(to_err)?;
+    let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let mut tmp = tempfile::NamedTempFile::new_in(&dir).map_err(to_err)?;
+    tmp.write_all(text.as_bytes()).map_err(to_err)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o600))
+            .map_err(to_err)?;
+    }
+    tmp.persist(&path).map_err(|e| to_err(e.error))?;
+    Ok(())
+}
+
 /// Reconcile the baseline with the current scan for one path.
 /// Returns true if the baseline changed.
 pub fn apply_finding(baseline: &mut Baseline, scan: &Scan, path: &Path) -> bool {

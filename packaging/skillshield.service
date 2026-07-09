@@ -1,0 +1,8 @@
+[Unit]
+Description=SkillShield scan for AI-agent config changes
+
+[Service]
+Type=oneshot
+ExecStart=%h/.cargo/bin/skillshield scan
+# Exit code 10 means "changes detected" — treat as success for the timer.
+SuccessExitStatus=10

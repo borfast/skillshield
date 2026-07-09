@@ -52,14 +52,19 @@ impl Collector {
                 .map(|t| t.to_string_lossy().into_owned());
             // One-hop hash of the resolved regular-file contents (None for
             // directory/special/dangling targets). Never recurses into a dir.
-            let out = hash_symlink_target(path, self.max_hash_bytes)
-                .unwrap_or(HashOutcome { digest: None, size: meta.len(), unhashed: false });
+            let out = match hash_symlink_target(path, self.max_hash_bytes) {
+                Ok(out) => out,
+                Err(e) => {
+                    self.errors.push(ScanError { path: path.into(), message: e.to_string() });
+                    HashOutcome { digest: None, size: meta.len(), unhashed: false }
+                }
+            };
             self.entries.insert(path.into(), Entry {
                 path: path.into(),
                 kind: EntryKind::Symlink,
                 digest: out.digest,
                 symlink_target: target,
-                size: meta.len(),
+                size: out.size,
                 mtime: Self::mtime_secs(&meta),
                 unhashed: out.unhashed,
                 source_rule: rule_id.into(),
@@ -133,11 +138,19 @@ pub fn discover(catalog: &Catalog, cfg: &ScanConfig) -> Scan {
                 if let Some(parent) = expanded.parent() {
                     if let Ok(set) = build_globset(&[expanded.to_string_lossy().into_owned()]) {
                         for e in WalkDir::new(parent).max_depth(1).follow_links(false) {
-                            if let Ok(e) = e {
-                                if (e.file_type().is_file() || e.file_type().is_symlink())
-                                    && set.is_match(e.path())
-                                {
-                                    col.add_file(e.path(), &rule.id);
+                            match e {
+                                Ok(e) => {
+                                    if (e.file_type().is_file() || e.file_type().is_symlink())
+                                        && set.is_match(e.path())
+                                    {
+                                        col.add_file(e.path(), &rule.id);
+                                    }
+                                }
+                                Err(err) => {
+                                    let p =
+                                        err.path().map(|p| p.to_path_buf()).unwrap_or_default();
+                                    col.errors
+                                        .push(ScanError { path: p, message: err.to_string() });
                                 }
                             }
                         }
@@ -309,5 +322,30 @@ mod tests {
         let paths: Vec<_> = scan.entries.iter().map(|e| e.path.clone()).collect();
         assert!(paths.contains(&root.join("proj/AGENTS.md")));
         assert!(!paths.iter().any(|p| p.to_string_lossy().contains("node_modules")));
+    }
+
+    #[test]
+    fn project_dirfileset_matches_files_inside_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        write(&root.join(".claude/skills/a.md"), "skill");
+        write(&root.join(".claude/settings.json"), "{}");
+
+        let cat = Catalog {
+            rules: vec![Rule {
+                id: "claude-dir".into(),
+                description: "".into(),
+                spec: MatchSpec::DirFileSet("**/.claude/".into()),
+                scope: Scope::Project,
+            }],
+        };
+        let cfg = ScanConfig {
+            project_roots: vec![root.to_string_lossy().into()],
+            ..ScanConfig::default()
+        };
+        let scan = discover(&cat, &cfg);
+        let paths: Vec<_> = scan.entries.iter().map(|e| e.path.clone()).collect();
+        assert!(paths.contains(&root.join(".claude/skills/a.md")));
+        assert!(paths.contains(&root.join(".claude/settings.json")));
     }
 }

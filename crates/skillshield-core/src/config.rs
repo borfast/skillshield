@@ -14,6 +14,9 @@ pub struct Config {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ScanConfig {
+    /// Reserved for future use. Discovery never follows symlinks regardless
+    /// of this value — it always scans with `follow_links(false)` per the
+    /// never-follow binding constraint — so this field is currently unread.
     pub follow_symlinks: bool,
     pub max_hash_bytes: u64,
     pub project_roots: Vec<String>,

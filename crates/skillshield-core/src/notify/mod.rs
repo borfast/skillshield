@@ -1,5 +1,8 @@
+pub mod desktop;
+pub mod email;
 pub mod report_file;
 pub mod stdout;
+pub mod webhook;
 
 use crate::config::NotifyConfig;
 use crate::report::ScanReport;
@@ -54,24 +57,21 @@ pub fn build_notifiers(cfg: &NotifyConfig) -> Vec<Box<dyn Notifier>> {
         match id.as_str() {
             "report" => out.push(Box::new(report_file::ReportFileNotifier::default())),
             "stdout" => out.push(Box::new(stdout::StdoutNotifier)),
-            // TODO(Task 10): enable once channel modules exist
-            // "desktop" => out.push(Box::new(crate::notify::desktop::DesktopNotifier)),
-            // TODO(Task 10): enable once channel modules exist
-            // "webhook" => {
-            //     if let Some(w) = &cfg.webhook {
-            //         out.push(Box::new(crate::notify::webhook::WebhookNotifier::new(w.clone())));
-            //     } else {
-            //         eprintln!("skillshield: 'webhook' channel enabled but [notify.webhook] is missing");
-            //     }
-            // }
-            // TODO(Task 10): enable once channel modules exist
-            // "email" => {
-            //     if let Some(e) = &cfg.email {
-            //         out.push(Box::new(crate::notify::email::EmailNotifier::new(e.clone())));
-            //     } else {
-            //         eprintln!("skillshield: 'email' channel enabled but [notify.email] is missing");
-            //     }
-            // }
+            "desktop" => out.push(Box::new(crate::notify::desktop::DesktopNotifier)),
+            "webhook" => {
+                if let Some(w) = &cfg.webhook {
+                    out.push(Box::new(crate::notify::webhook::WebhookNotifier::new(w.clone())));
+                } else {
+                    eprintln!("skillshield: 'webhook' channel enabled but [notify.webhook] is missing");
+                }
+            }
+            "email" => {
+                if let Some(e) = &cfg.email {
+                    out.push(Box::new(crate::notify::email::EmailNotifier::new(e.clone())));
+                } else {
+                    eprintln!("skillshield: 'email' channel enabled but [notify.email] is missing");
+                }
+            }
             other => eprintln!("skillshield: unknown notify channel '{other}', skipping"),
         }
     }

@@ -27,8 +27,12 @@ pub fn to_err<E: std::fmt::Display>(e: E) -> String {
     e.to_string()
 }
 
+/// Normalize a user-supplied path to the form discovery stores entries in,
+/// without resolving symlinks (see `skillshield_core::paths::normalize`). Using
+/// canonicalize here would resolve symlink prefixes (e.g. a symlinked `$HOME`)
+/// and fail to match the paths `scan`/`status` print for global-rule entries.
 pub fn abs(path: &Path) -> std::path::PathBuf {
-    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+    skillshield_core::paths::normalize(path)
 }
 
 pub fn load_baseline_or_hint() -> Result<skillshield_core::baseline::Baseline, String> {

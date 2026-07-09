@@ -76,7 +76,8 @@ One record per tracked file:
 Entry {
   path:        absolute, canonicalized (without following symlinks)
   kind:        File | Symlink
-  digest:      "sha256:…"        // content hash for regular files
+  digest:      "sha256:…"        // content hash: regular files, AND the resolved
+                                 // content behind a symlink to a regular file
   symlink_tgt: Option<String>    // literal target if it's a symlink
   size, mtime                    // display / cheap change hints, NOT trust signals
   source:      catalog rule id + which root matched it
@@ -93,12 +94,27 @@ core threat: a new artifact sliding in unnoticed.
 
 ### 5.3 Symlinks
 
-- The walk does **not** follow symlinks (prevents escaping monitored roots and
-  loops).
-- The symlink's literal target is recorded. A symlink whose target silently
-  changes is a `Modified` finding.
+- The **walk** never traverses *into* symlinked directories (prevents escaping
+  monitored roots and loops).
+- The symlink's literal target string is recorded. Retargeting → `Modified`.
+- **One-hop content hashing:** for a symlink that resolves to a *regular file*,
+  the resolved file's content is hashed (a single dereference via the OS, which
+  may follow a chain of links to a final file), and that digest is stored on the
+  symlink entry *in addition to* the literal target. This catches a **content
+  swap behind a stable symlink** — the exact attack the tool exists to detect,
+  since an agent following the link reads the current target contents.
+  - Guarded by `max_hash_bytes` (oversized target → `unhashed`).
+  - A symlink to a **directory**, a special file, or a **dangling** target is
+    *not* traversed/hashed; only its literal target is recorded (`digest = None`).
 
-### 5.4 Baseline
+### 5.4 File ↔ symlink type flips
+
+A monitored path changing `kind` (regular file ↔ symlink) is always a `Modified`
+finding: the `diff` compares `kind` explicitly, so a flip is reported even if
+content digests happen to coincide. The finding detail states the direction
+(e.g. `type changed (File -> Symlink)`).
+
+### 5.5 Baseline
 
 - Single JSON file at `$XDG_DATA_HOME/skillshield/baseline.json` (fallback
   `~/.local/share/skillshield/baseline.json`).
@@ -109,7 +125,7 @@ core threat: a new artifact sliding in unnoticed.
 - Stores a top-level digest over its own entries so **tampering with the
   baseline itself is detectable** and reported rather than silently trusted.
 
-### 5.5 Hashing
+### 5.6 Hashing
 
 - SHA-256, **streamed** (never slurp whole files into memory).
 - Configurable `max_hash_bytes` guard: oversized files are recorded by

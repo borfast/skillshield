@@ -10,6 +10,7 @@ pub mod discovery;
 pub mod baseline;
 pub mod diff;
 pub mod report;
+pub mod notify;
 
 pub use error::{Error, Result};
 pub use entry::{Entry, EntryKind};

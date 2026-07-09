@@ -1320,7 +1320,11 @@ name = "skillshield-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "notify-rust",
+ "serde_json",
  "skillshield-core",
+ "tempfile",
+ "toml",
 ]
 
 [[package]]

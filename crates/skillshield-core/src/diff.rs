@@ -179,6 +179,19 @@ mod tests {
     }
 
     #[test]
+    fn unhashed_change_is_modified() {
+        // Same path, same digest, same symlink_target — only `unhashed` differs.
+        let mut old = file("/big", "sha256:x");
+        old.unhashed = false;
+        let mut new = old.clone();
+        new.unhashed = true;
+        let d = diff(&Baseline::new(vec![old]), &scan(vec![new]));
+        assert_eq!(d.findings.len(), 1);
+        assert_eq!(d.findings[0].change, ChangeKind::Modified);
+        assert!(d.findings[0].detail.contains("unhashed"));
+    }
+
+    #[test]
     fn file_to_symlink_flip_is_modified() {
         // same digest, but kind changes File -> Symlink
         let old = file("/p", "sha256:same");

@@ -37,9 +37,20 @@ impl Notifier for ReportFileNotifier {
         }
         tmp.persist(&path).map_err(|e| err(e.to_string()))?;
 
-        // Also append a human-readable line-log next to the JSON.
+        // Also append a human-readable line-log next to the JSON. This is
+        // best-effort by design: a failure to open or write the log must not
+        // break the notifier, since the JSON report above is the durable
+        // artifact. On unix, create it owner-only (0600) since it contains
+        // file paths and digests; this only affects newly-created files.
         let log = path.with_file_name("skillshield.log");
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log) {
+        let mut open_opts = std::fs::OpenOptions::new();
+        open_opts.create(true).append(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            open_opts.mode(0o600);
+        }
+        if let Ok(mut f) = open_opts.open(&log) {
             let _ = writeln!(f, "--- {} ---\n{}", report.generated_at, render_text(report));
         }
         Ok(())

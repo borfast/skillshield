@@ -108,4 +108,17 @@ mod tests {
         assert!(out.digest.is_none());
         assert!(!out.unhashed);
     }
+
+    #[test]
+    fn symlink_to_directory_has_no_digest() {
+        let dir = tempfile::tempdir().unwrap();
+        let subdir = dir.path().join("subdir");
+        std::fs::create_dir(&subdir).unwrap();
+        let link = dir.path().join("link");
+        std::os::unix::fs::symlink(&subdir, &link).unwrap();
+
+        let out = hash_symlink_target(&link, 1_000_000).unwrap();
+        assert!(out.digest.is_none());
+        assert!(!out.unhashed);
+    }
 }

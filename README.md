@@ -5,7 +5,7 @@ A Linux tripwire for the files AI coding agents consume — skills, plugins,
 
 The goal is to have some insurance that if a malicious file is added to an
 agent, or an existing file is modified in some way to make it malicious,
-it does pass silently.
+it does not pass silently.
 
 It baselines what exists, then warns you when anything is added, modified,
 or removed. Detect-and-warn only: it never edits or blocks your files.

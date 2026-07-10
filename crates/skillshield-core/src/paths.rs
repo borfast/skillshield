@@ -77,6 +77,12 @@ fn app_subdir(base: &Path) -> PathBuf {
     base.join("skillshield")
 }
 
+/// The XDG config base directory (e.g. `~/.config`), not the app subdir.
+pub fn config_dir() -> Result<PathBuf> {
+    let b = BaseDirs::new().ok_or(Error::NoHome)?;
+    Ok(b.config_dir().to_path_buf())
+}
+
 pub fn config_path() -> Result<PathBuf> {
     let b = BaseDirs::new().ok_or(Error::NoHome)?;
     Ok(app_subdir(b.config_dir()).join("config.toml"))

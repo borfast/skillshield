@@ -21,7 +21,12 @@ pub enum Command {
         force: bool,
     },
     /// Scan and report changes vs. the baseline (scheduled use). Read-only.
-    Scan,
+    Scan {
+        /// Also notify on a clean run (no changes). Off by default so a
+        /// background timer/cron job stays quiet unless something changed.
+        #[arg(short, long)]
+        verbose: bool,
+    },
     /// Show current changes vs. the baseline. Read-only.
     Status,
     /// Interactively accept/reject pending changes.
@@ -32,6 +37,34 @@ pub enum Command {
     Monitor { path: PathBuf },
     /// Remove a project root from config and prune its baseline entries.
     Unmonitor { path: PathBuf },
+    /// Install (or remove) a periodic `scan` schedule via systemd or cron.
+    Schedule {
+        /// Remove the schedule instead of installing it.
+        #[arg(long)]
+        remove: bool,
+        /// Force the systemd user-timer backend (default: auto-detect).
+        #[arg(long, conflicts_with = "cron")]
+        systemd: bool,
+        /// Force the cron backend (default: auto-detect).
+        #[arg(long)]
+        cron: bool,
+        /// Skip the confirmation prompt.
+        #[arg(long)]
+        yes: bool,
+        /// Run frequency.
+        #[arg(long, value_enum, default_value_t = Interval::Hourly)]
+        interval: Interval,
+        /// Run time HH:MM. For `--interval daily` this is the run time; for
+        /// hourly only the minute is used (run at that minute past each hour).
+        #[arg(long, default_value = "09:00")]
+        time: String,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum Interval {
+    Hourly,
+    Daily,
 }
 
 #[cfg(test)]
@@ -42,7 +75,31 @@ mod tests {
     #[test]
     fn parses_scan() {
         let cli = Cli::try_parse_from(["skillshield", "scan"]).unwrap();
-        assert!(matches!(cli.command, Command::Scan));
+        assert!(matches!(cli.command, Command::Scan { verbose: false }));
+    }
+
+    #[test]
+    fn parses_scan_verbose() {
+        let cli = Cli::try_parse_from(["skillshield", "scan", "-v"]).unwrap();
+        assert!(matches!(cli.command, Command::Scan { verbose: true }));
+    }
+
+    #[test]
+    fn parses_schedule_defaults() {
+        let cli = Cli::try_parse_from(["skillshield", "schedule"]).unwrap();
+        match cli.command {
+            Command::Schedule {
+                remove,
+                interval,
+                time,
+                ..
+            } => {
+                assert!(!remove);
+                assert_eq!(interval, Interval::Hourly);
+                assert_eq!(time, "09:00");
+            }
+            _ => panic!("wrong command"),
+        }
     }
 
     #[test]

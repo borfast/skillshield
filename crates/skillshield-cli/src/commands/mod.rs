@@ -7,18 +7,34 @@ pub mod init;
 pub mod monitor;
 pub mod review;
 pub mod scan;
+pub mod schedule;
 pub mod status;
 pub mod trust;
 
 pub fn run(command: Command) -> Result<i32, String> {
     match command {
         Command::Init { force } => init::run(force),
-        Command::Scan => scan::run(),
+        Command::Scan { verbose } => scan::run(verbose),
         Command::Status => status::run(),
         Command::Review => review::run(),
         Command::Trust { path } => trust::run(&path),
         Command::Monitor { path } => monitor::run(&path),
         Command::Unmonitor { path } => monitor::run_unmonitor(&path),
+        Command::Schedule {
+            remove,
+            systemd,
+            cron,
+            yes,
+            interval,
+            time,
+        } => schedule::run(schedule::Opts {
+            remove,
+            force_systemd: systemd,
+            force_cron: cron,
+            yes,
+            interval,
+            time,
+        }),
     }
 }
 

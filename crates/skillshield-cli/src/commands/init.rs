@@ -85,7 +85,7 @@ fn maybe_setup_desktop(cfg: &Config) -> Result<(), String> {
 
 fn print_scheduling_hint() {
     println!(
-        "\nTo run periodically:\n  systemctl --user enable --now skillshield.timer\n  \
-         (or add a cron entry — see packaging/ in the repo)"
+        "\nTo run periodically:\n  skillshield schedule        # installs a systemd timer or cron job (asks first)\n  \
+         skillshield schedule --help # options: --interval, --time, --cron, --remove"
     );
 }

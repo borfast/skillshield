@@ -21,10 +21,29 @@ cargo install --path crates/skillshield-cli
 ```bash
 skillshield init                 # discover artifacts, review, write baseline
 skillshield monitor ~/projects/x # add a project directory to watch
-skillshield scan                 # check for changes (exit 10 if any)
+skillshield scan                 # check for changes (exit 10 if any); quiet on a clean run
+skillshield scan -v              # also report "no changes"
 skillshield status               # human-readable diff
 skillshield review               # accept/reject pending changes
+skillshield schedule             # install a periodic scan (systemd timer or cron)
 ```
+
+## Scheduling
+
+`skillshield schedule` installs a periodic `scan`, auto-detecting a **systemd
+user timer** (preferred) or falling back to **cron**. It prints exactly what it
+will write/run and asks before touching anything; re-running is idempotent.
+
+```bash
+skillshield schedule                 # hourly, auto-detected backend, with a prompt
+skillshield schedule --interval daily --time 09:00
+skillshield schedule --cron --yes    # force cron, skip the prompt
+skillshield schedule --remove        # tear it down
+```
+
+A clean run is silent (no output, no webhook) so a background timer stays quiet;
+run `skillshield scan -v` for the "no changes" notification. Hand-managed
+systemd/cron examples remain in `packaging/`.
 
 Config: `~/.config/skillshield/config.toml`.
 State: `~/.local/share/skillshield/{baseline.json,last-report.json}`.

@@ -35,8 +35,9 @@ pub enum Command {
     Trust { path: PathBuf },
     /// Add a project root: crawl once, record in config, trust findings.
     Monitor { path: PathBuf },
-    /// Remove a project root from config and prune its baseline entries.
-    Unmonitor { path: PathBuf },
+    /// Forget a monitored project root: remove it from config and prune its
+    /// baseline entries.
+    Forget { path: PathBuf },
     /// Install (or remove) a periodic `scan` schedule via systemd or cron.
     Schedule {
         /// Remove the schedule instead of installing it.
@@ -82,6 +83,15 @@ mod tests {
     fn parses_scan_verbose() {
         let cli = Cli::try_parse_from(["skillshield", "scan", "-v"]).unwrap();
         assert!(matches!(cli.command, Command::Scan { verbose: true }));
+    }
+
+    #[test]
+    fn parses_forget_with_path() {
+        let cli = Cli::try_parse_from(["skillshield", "forget", "/a/b"]).unwrap();
+        match cli.command {
+            Command::Forget { path } => assert_eq!(path, std::path::PathBuf::from("/a/b")),
+            _ => panic!("wrong command"),
+        }
     }
 
     #[test]

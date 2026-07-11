@@ -1,2 +1,8 @@
-.superpowers/
 /target
+.superpowers/
+
+# Local agent/dev tooling — not part of the project
+.claude/
+.gitnexus/
+/AGENTS.md
+/CLAUDE.md

@@ -19,7 +19,7 @@ pub fn run(command: Command) -> Result<i32, String> {
         Command::Review => review::run(),
         Command::Trust { path } => trust::run(&path),
         Command::Monitor { path } => monitor::run(&path),
-        Command::Unmonitor { path } => monitor::run_unmonitor(&path),
+        Command::Forget { path } => monitor::run_forget(&path),
         Command::Schedule {
             remove,
             systemd,

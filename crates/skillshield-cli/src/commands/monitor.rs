@@ -41,7 +41,7 @@ pub fn run(path: &Path) -> Result<i32, String> {
     Ok(Code::OK)
 }
 
-pub fn run_unmonitor(path: &Path) -> Result<i32, String> {
+pub fn run_forget(path: &Path) -> Result<i32, String> {
     let target = abs(path);
     let mut cfg = Config::load().map_err(to_err)?;
     let target_str = target.to_string_lossy().to_string();

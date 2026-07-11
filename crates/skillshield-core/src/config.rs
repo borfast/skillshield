@@ -168,4 +168,17 @@ mod tests {
         // untouched field keeps its default
         assert_eq!(c.scan.max_hash_bytes, 5_000_000);
     }
+
+    #[test]
+    fn default_config_serializes_and_round_trips() {
+        // The CLI writes `toml::to_string_pretty(&Config::default())` as the
+        // initial config file; it must parse back to the same values.
+        let text = toml::to_string_pretty(&Config::default()).unwrap();
+        let parsed: Config = toml::from_str(&text).unwrap();
+        assert_eq!(
+            toml::to_string_pretty(&parsed).unwrap(),
+            text,
+            "default config must round-trip through TOML"
+        );
+    }
 }

@@ -9,6 +9,9 @@ use skillshield_core::config::Config;
 use skillshield_core::paths;
 
 pub fn run() -> Result<i32, String> {
+    if let Some(path) = crate::commands::ensure_config_file()? {
+        println!("Created a default config file at {}\n", path.display());
+    }
     print!("{}", overview_for(&Config::load().map_err(to_err)?)?);
     Ok(Code::OK)
 }

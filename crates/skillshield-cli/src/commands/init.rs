@@ -19,6 +19,15 @@ pub fn run(force: bool) -> Result<i32, String> {
 
     let cfg = Config::load().map_err(to_err)?;
 
+    // Materialize a default config file if none exists, so the user has a
+    // concrete file to inspect and customize.
+    if let Some(path) = crate::commands::ensure_config_file()? {
+        println!(
+            "Created a default config file at {} — edit it to customize.\n",
+            path.display()
+        );
+    }
+
     // Orient the user before we touch anything: what init does, where config
     // and state live, the effective settings, and the built-in catalog.
     print!("{}", crate::commands::config::overview_for(&cfg)?);

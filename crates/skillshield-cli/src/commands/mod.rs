@@ -85,25 +85,44 @@ pub fn save_baseline(baseline: &Baseline) -> Result<(), String> {
     baseline.save(&path).map_err(to_err)
 }
 
-/// Atomically write the config (0600) to `paths::config_path()`.
-pub fn write_config(cfg: &skillshield_core::config::Config) -> Result<(), String> {
+/// Atomically write `content` to `path` (temp file + rename) with 0600 perms.
+fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
     use std::io::Write;
-    let path = skillshield_core::paths::config_path().map_err(to_err)?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(to_err)?;
-    }
-    let text = toml::to_string_pretty(cfg).map_err(to_err)?;
-    let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let dir = path
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    std::fs::create_dir_all(&dir).map_err(to_err)?;
     let mut tmp = tempfile::NamedTempFile::new_in(&dir).map_err(to_err)?;
-    tmp.write_all(text.as_bytes()).map_err(to_err)?;
+    tmp.write_all(content.as_bytes()).map_err(to_err)?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(tmp.path(), std::fs::Permissions::from_mode(0o600))
             .map_err(to_err)?;
     }
-    tmp.persist(&path).map_err(|e| to_err(e.error))?;
+    tmp.persist(path).map_err(|e| to_err(e.error))?;
     Ok(())
+}
+
+/// Atomically write the config (0600) to `paths::config_path()`.
+pub fn write_config(cfg: &skillshield_core::config::Config) -> Result<(), String> {
+    let path = skillshield_core::paths::config_path().map_err(to_err)?;
+    let text = toml::to_string_pretty(cfg).map_err(to_err)?;
+    write_atomic(&path, &text)
+}
+
+/// Create the config file with default values if it doesn't exist yet, so the
+/// user has a concrete file to inspect and edit. Returns the path if created.
+pub fn ensure_config_file() -> Result<Option<std::path::PathBuf>, String> {
+    let path = skillshield_core::paths::config_path().map_err(to_err)?;
+    if path.exists() {
+        return Ok(None);
+    }
+    let text =
+        toml::to_string_pretty(&skillshield_core::config::Config::default()).map_err(to_err)?;
+    write_atomic(&path, &text)?;
+    Ok(Some(path))
 }
 
 /// Reconcile the baseline with the current scan for one path.

@@ -14,6 +14,11 @@ impl WebhookNotifier {
 
 impl Notifier for WebhookNotifier {
     fn notify(&self, report: &ScanReport) -> Result<(), NotifyError> {
+        // Alert channel: stay quiet on a clean run so a periodic scan doesn't
+        // POST "nothing changed" every time (matches desktop/email).
+        if !report.has_changes() {
+            return Ok(());
+        }
         let err = |m: String| NotifyError {
             channel: "webhook".into(),
             message: m,

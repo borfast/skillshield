@@ -22,8 +22,8 @@ pub enum Command {
     },
     /// Scan and report changes vs. the baseline (scheduled use). Read-only.
     Scan {
-        /// Also notify on a clean run (no changes). Off by default so a
-        /// background timer/cron job stays quiet unless something changed.
+        /// Also list every file/directory checked and its per-entry result
+        /// (ok/added/modified/removed), in addition to the result summary.
         #[arg(short, long)]
         verbose: bool,
     },

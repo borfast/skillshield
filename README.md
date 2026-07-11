@@ -21,8 +21,8 @@ cargo install --path crates/skillshield-cli
 ```bash
 skillshield init                 # discover artifacts, review, write baseline
 skillshield monitor ~/projects/x # add a project directory to watch
-skillshield scan                 # check for changes (exit 10 if any); quiet on a clean run
-skillshield scan -v              # also report "no changes"
+skillshield scan                 # check for changes (exit 10 if any)
+skillshield scan -v              # also list every item checked and its result
 skillshield status               # human-readable diff
 skillshield review               # accept/reject pending changes
 skillshield schedule             # install a periodic scan (systemd timer or cron)
@@ -41,8 +41,10 @@ skillshield schedule --cron --yes    # force cron, skip the prompt
 skillshield schedule --remove        # tear it down
 ```
 
-A clean run is silent (no output, no webhook) so a background timer stays quiet;
-run `skillshield scan -v` for the "no changes" notification. Hand-managed
+On a clean run `scan` still prints a one-line result to stdout (a useful
+heartbeat in journald/cron logs), but the **alert** channels
+(desktop/email/webhook) stay quiet — they only fire when something changed. Use
+`skillshield scan -v` to also list every item checked. Hand-managed
 systemd/cron examples remain in `packaging/`.
 
 Config: `~/.config/skillshield/config.toml`.

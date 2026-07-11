@@ -18,6 +18,12 @@ pub fn run(force: bool) -> Result<i32, String> {
     }
 
     let cfg = Config::load().map_err(to_err)?;
+
+    // Orient the user before we touch anything: what init does, where config
+    // and state live, the effective settings, and the built-in catalog.
+    print!("{}", crate::commands::config::overview_for(&cfg)?);
+    println!("\nScanning monitored locations…\n");
+
     let catalog = Catalog::builtin().apply(&cfg.catalog.disable, &cfg.catalog.extra_files);
     let scan = discover(&catalog, &cfg.scan);
 

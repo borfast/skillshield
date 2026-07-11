@@ -3,6 +3,7 @@ use skillshield_core::baseline::Baseline;
 use skillshield_core::discovery::Scan;
 use std::path::Path;
 
+pub mod config;
 pub mod init;
 pub mod monitor;
 pub mod review;
@@ -16,6 +17,7 @@ pub fn run(command: Command) -> Result<i32, String> {
         Command::Init { force } => init::run(force),
         Command::Scan { verbose } => scan::run(verbose),
         Command::Status => status::run(),
+        Command::Config => config::run(),
         Command::Review => review::run(),
         Command::Trust { path } => trust::run(&path),
         Command::Monitor { path } => monitor::run(&path),

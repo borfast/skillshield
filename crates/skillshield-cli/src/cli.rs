@@ -29,6 +29,8 @@ pub enum Command {
     },
     /// Show current changes vs. the baseline. Read-only.
     Status,
+    /// Show the effective configuration, paths, and built-in catalog summary.
+    Config,
     /// Interactively accept/reject pending changes.
     Review,
     /// Accept a specific path into the baseline.
@@ -83,6 +85,12 @@ mod tests {
     fn parses_scan_verbose() {
         let cli = Cli::try_parse_from(["skillshield", "scan", "-v"]).unwrap();
         assert!(matches!(cli.command, Command::Scan { verbose: true }));
+    }
+
+    #[test]
+    fn parses_config() {
+        let cli = Cli::try_parse_from(["skillshield", "config"]).unwrap();
+        assert!(matches!(cli.command, Command::Config));
     }
 
     #[test]

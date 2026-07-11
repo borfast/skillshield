@@ -19,6 +19,7 @@ cargo install --path crates/skillshield-cli
 ## Quick start
 
 ```bash
+skillshield config               # show effective settings, paths, and what gets scanned
 skillshield init                 # discover artifacts, review, write baseline
 skillshield monitor ~/projects/x # add a project directory to watch
 skillshield scan                 # check for changes (exit 10 if any)

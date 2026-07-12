@@ -267,12 +267,18 @@ pub fn default_rules() -> Vec<Rule> {
             "Cursor rules",
             DirFileSet("~/.cursor/rules/".into()),
         ),
-        // ---- GitHub Copilot ----
+        // ---- GitHub Copilot (instructions + MCP scattered under per-client subdirs) ----
         g(
-            "copilot.config",
+            "copilot.instructions",
             "copilot",
-            "GitHub Copilot config",
-            DirFileSet("~/.config/github-copilot/".into()),
+            "Copilot custom instructions",
+            Glob("~/.config/github-copilot/**/*instructions*.md".into()),
+        ),
+        g(
+            "copilot.mcp",
+            "copilot",
+            "Copilot MCP config",
+            Glob("~/.config/github-copilot/**/mcp.json".into()),
         ),
         // ---- Project artifact patterns (matched only under opted-in roots) ----
         p(

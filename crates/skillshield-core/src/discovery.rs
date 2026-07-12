@@ -162,26 +162,46 @@ pub fn discover(catalog: &Catalog, cfg: &ScanConfig) -> Scan {
                 col.add_dir_fileset(&expand_tilde(d), &rule.id);
             }
             MatchSpec::Glob(g) => {
-                // A global glob: match against files in the glob's base directory.
+                // A global glob. A `**` pattern walks recursively from its
+                // literal (non-wildcard) base — for behavior files scattered
+                // across client subdirs (e.g. Copilot's per-client
+                // instructions/mcp.json) without pulling in sibling state. A
+                // plain glob keeps its single-level behavior (e.g.
+                // `~/.claude/settings*.json`).
                 let expanded = expand_tilde(g);
-                if let Some(parent) = expanded.parent() {
-                    if let Ok(set) = build_globset(&[expanded.to_string_lossy().into_owned()]) {
-                        for e in WalkDir::new(parent).max_depth(1).follow_links(false) {
-                            match e {
-                                Ok(e) => {
-                                    if (e.file_type().is_file() || e.file_type().is_symlink())
-                                        && set.is_match(e.path())
-                                    {
-                                        col.add_file(e.path(), &rule.id);
-                                    }
+                let pattern = expanded.to_string_lossy().into_owned();
+                let recursive = pattern.contains("**");
+                let base = if recursive {
+                    glob_literal_base(&pattern)
+                } else {
+                    expanded
+                        .parent()
+                        .map(|p| p.to_path_buf())
+                        .unwrap_or_default()
+                };
+                if base.as_os_str().is_empty() {
+                    continue;
+                }
+                if let Ok(set) = build_globset(&[pattern]) {
+                    let mut walker = WalkDir::new(&base).follow_links(false);
+                    if !recursive {
+                        walker = walker.max_depth(1);
+                    }
+                    for e in walker {
+                        match e {
+                            Ok(e) => {
+                                if (e.file_type().is_file() || e.file_type().is_symlink())
+                                    && set.is_match(e.path())
+                                {
+                                    col.add_file(e.path(), &rule.id);
                                 }
-                                Err(err) => {
-                                    let p = err.path().map(|p| p.to_path_buf()).unwrap_or_default();
-                                    col.errors.push(ScanError {
-                                        path: p,
-                                        message: err.to_string(),
-                                    });
-                                }
+                            }
+                            Err(err) => {
+                                let p = err.path().map(|p| p.to_path_buf()).unwrap_or_default();
+                                col.errors.push(ScanError {
+                                    path: p,
+                                    message: err.to_string(),
+                                });
                             }
                         }
                     }
@@ -260,6 +280,20 @@ fn single_glob_match(pattern: &str, rel: &Path) -> bool {
     build_globset(std::slice::from_ref(&pattern.to_string()))
         .map(|s| s.is_match(rel))
         .unwrap_or(false)
+}
+
+/// The longest leading directory of a glob pattern containing no wildcard —
+/// where recursive matching should start (e.g. `~/x/**/y` → `~/x`).
+fn glob_literal_base(pattern: &str) -> PathBuf {
+    let mut base = PathBuf::new();
+    for comp in Path::new(pattern).components() {
+        let s = comp.as_os_str().to_string_lossy();
+        if s.contains(['*', '?', '[', '{']) {
+            break;
+        }
+        base.push(comp);
+    }
+    base
 }
 
 fn build_globset(patterns: &[String]) -> Result<globset::GlobSet, globset::Error> {
@@ -412,6 +446,41 @@ mod tests {
         assert!(!paths
             .iter()
             .any(|p| p.to_string_lossy().contains("node_modules")));
+    }
+
+    #[test]
+    fn global_recursive_glob_matches_nested_only() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        // A behavior file nested under a client subdir, amid churny state.
+        write(
+            &root.join("cfg/intellij/global-copilot-instructions.md"),
+            "hi",
+        );
+        write(&root.join("cfg/go/chat-sessions/x/00000.xd"), "state");
+        write(&root.join("cfg/apps.json"), "{}");
+
+        let cat = Catalog {
+            rules: vec![Rule {
+                id: "instr".into(),
+                group: "test".into(),
+                description: "".into(),
+                spec: MatchSpec::Glob(
+                    root.join("cfg/**/*instructions*.md")
+                        .to_string_lossy()
+                        .into(),
+                ),
+                scope: Scope::Global,
+            }],
+        };
+        let scan = discover(&cat, &ScanConfig::default());
+        let paths: Vec<_> = scan.entries.iter().map(|e| e.path.clone()).collect();
+        assert_eq!(
+            paths.len(),
+            1,
+            "should match only the instructions file, got {paths:?}"
+        );
+        assert!(paths[0].ends_with("global-copilot-instructions.md"));
     }
 
     #[test]

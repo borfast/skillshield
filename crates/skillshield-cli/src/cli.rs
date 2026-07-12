@@ -41,6 +41,17 @@ pub enum Command {
     Trust { path: PathBuf },
     /// Add a project root: crawl once, record in config, trust findings.
     Monitor { path: PathBuf },
+    /// Register an agent profile in a non-standard location (e.g. a second
+    /// CLAUDE_CONFIG_DIR): re-roots that agent's rules at the given directory.
+    AddProfile {
+        /// Agent whose rule set to apply: claude, codex, or gemini.
+        agent: String,
+        /// The profile's root directory (e.g. ~/.claude-gc).
+        path: String,
+        /// Remove the profile instead of adding it.
+        #[arg(long)]
+        remove: bool,
+    },
     /// Forget a monitored project root: remove it from config and prune its
     /// baseline entries.
     Forget { path: PathBuf },
@@ -95,6 +106,24 @@ mod tests {
     fn parses_config() {
         let cli = Cli::try_parse_from(["skillshield", "config"]).unwrap();
         assert!(matches!(cli.command, Command::Config));
+    }
+
+    #[test]
+    fn parses_add_profile() {
+        let cli =
+            Cli::try_parse_from(["skillshield", "add-profile", "claude", "~/.claude-gc"]).unwrap();
+        match cli.command {
+            Command::AddProfile {
+                agent,
+                path,
+                remove,
+            } => {
+                assert_eq!(agent, "claude");
+                assert_eq!(path, "~/.claude-gc");
+                assert!(!remove);
+            }
+            _ => panic!("wrong command"),
+        }
     }
 
     #[test]

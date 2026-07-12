@@ -8,6 +8,7 @@
 //! than whole home directories, whose bulk is churny runtime state
 //! (sandboxes, sessions, caches, logs) that would drown a tripwire in noise.
 
+use crate::config::Profile;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -21,6 +22,62 @@ pub enum MatchSpec {
     ExactPath(String),
     Glob(String),
     DirFileSet(String),
+}
+
+impl MatchSpec {
+    /// The path/pattern string this spec matches on.
+    pub fn path(&self) -> &str {
+        match self {
+            MatchSpec::ExactPath(p) | MatchSpec::Glob(p) | MatchSpec::DirFileSet(p) => p,
+        }
+    }
+
+    /// A copy of this spec with its path/pattern replaced (same variant).
+    fn with_path(&self, new: String) -> MatchSpec {
+        match self {
+            MatchSpec::ExactPath(_) => MatchSpec::ExactPath(new),
+            MatchSpec::Glob(_) => MatchSpec::Glob(new),
+            MatchSpec::DirFileSet(_) => MatchSpec::DirFileSet(new),
+        }
+    }
+}
+
+/// The default home directory for an agent that supports profile re-rooting.
+/// `None` for agents without a simple directory home (cursor/copilot).
+pub fn agent_default_root(agent: &str) -> Option<&'static str> {
+    match agent {
+        "claude" => Some("~/.claude"),
+        "codex" => Some("~/.codex"),
+        "gemini" => Some("~/.gemini"),
+        _ => None,
+    }
+}
+
+/// The agents that support profiles (have a directory home), for validation.
+pub fn profileable_agents() -> &'static [&'static str] {
+    &["claude", "codex", "gemini"]
+}
+
+/// Whether a group key is pre-selected by default. Profile groups
+/// (`base@path`) inherit their base group's `default_on`, so a profile's
+/// `claude.memory@…` stays opt-in just like the primary `claude.memory`.
+pub fn group_default_on(key: &str) -> bool {
+    let base = key.split_once('@').map_or(key, |(b, _)| b);
+    global_groups()
+        .iter()
+        .find(|m| m.key == base)
+        .map(|m| m.default_on)
+        .unwrap_or(false)
+}
+
+/// A short, filesystem-derived name for a profile path (`~/.claude-gc` →
+/// `claude-gc`), used to namespace its groups/ids.
+pub fn profile_name(path: &str) -> String {
+    std::path::Path::new(path)
+        .file_name()
+        .map(|n| n.to_string_lossy().trim_start_matches('.').to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "profile".to_string())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -110,6 +167,44 @@ impl Catalog {
                 spec: MatchSpec::Glob(glob.clone()),
                 scope: Scope::Project,
             });
+        }
+        self
+    }
+
+    /// Append re-rooted copies of each profile's agent rules. For a profile
+    /// `{agent, path}`, every built-in global rule whose path lives *under* the
+    /// agent's default home (e.g. `~/.claude/…`) is copied with the prefix
+    /// swapped to `path`; its id/group are namespaced by the full profile path
+    /// (e.g. `claude.core@/home/u/.claude-gc`) so profiles sharing a basename
+    /// don't collide. Rules outside the home (the MCP sibling `~/.claude.json`,
+    /// cursor/copilot globs) are not re-rooted.
+    pub fn with_profiles(mut self, profiles: &[Profile]) -> Self {
+        let builtin: Vec<Rule> = self
+            .rules
+            .iter()
+            .filter(|r| r.scope == Scope::Global)
+            .cloned()
+            .collect();
+        for profile in profiles {
+            let Some(root) = agent_default_root(&profile.agent) else {
+                continue;
+            };
+            let prefix = format!("{root}/");
+            // Namespace by the full path (not basename): two profiles sharing a
+            // leaf name (e.g. ~/.claude-gc and ~/other/.claude-gc) must not
+            // collide on group/id keys.
+            let base = profile.path.trim_end_matches('/');
+            for rule in &builtin {
+                if let Some(rel) = rule.spec.path().strip_prefix(&prefix) {
+                    self.rules.push(Rule {
+                        id: format!("{}@{}", rule.id, base),
+                        group: format!("{}@{}", rule.group, base),
+                        description: format!("{} @ {}", rule.description, base),
+                        spec: rule.spec.with_path(format!("{base}/{rel}")),
+                        scope: Scope::Global,
+                    });
+                }
+            }
         }
         self
     }
@@ -410,6 +505,68 @@ mod tests {
         // dropped: a global from a non-selected group
         assert!(!c.rules.iter().any(|r| r.id == "gemini.md"));
         assert!(!c.rules.iter().any(|r| r.id == "claude.memory"));
+    }
+
+    #[test]
+    fn with_profiles_reroots_agent_rules() {
+        use crate::config::Profile;
+        let c = Catalog::builtin().with_profiles(&[Profile {
+            agent: "claude".into(),
+            path: "/home/u/.claude-gc".into(),
+        }]);
+        // A re-rooted skills rule exists under the profile path, namespaced by
+        // the FULL path (not basename).
+        let r = c
+            .rules
+            .iter()
+            .find(|r| r.id == "claude.skills@/home/u/.claude-gc")
+            .expect("re-rooted skills rule");
+        assert_eq!(r.group, "claude.core@/home/u/.claude-gc");
+        assert_eq!(r.spec.path(), "/home/u/.claude-gc/skills/");
+        // The MCP sibling (~/.claude.json, not under ~/.claude/) is NOT re-rooted.
+        assert!(!c.rules.iter().any(|r| r.id.starts_with("claude.mcp@")));
+    }
+
+    #[test]
+    fn same_basename_profiles_do_not_collide() {
+        use crate::config::Profile;
+        let c = Catalog::builtin().with_profiles(&[
+            Profile {
+                agent: "claude".into(),
+                path: "/home/a/.claude-gc".into(),
+            },
+            Profile {
+                agent: "claude".into(),
+                path: "/home/b/.claude-gc".into(),
+            },
+        ]);
+        // Distinct full-path namespaces → distinct group keys, no collision.
+        assert!(c
+            .rules
+            .iter()
+            .any(|r| r.group == "claude.core@/home/a/.claude-gc"));
+        assert!(c
+            .rules
+            .iter()
+            .any(|r| r.group == "claude.core@/home/b/.claude-gc"));
+    }
+
+    #[test]
+    fn group_default_on_inherits_base() {
+        assert!(group_default_on("claude.core@/home/u/.claude-gc"));
+        assert!(!group_default_on("claude.memory@/home/u/.claude-gc"));
+        assert!(!group_default_on("claude.memory"));
+    }
+
+    #[test]
+    fn with_profiles_ignores_unprofileable_agent() {
+        use crate::config::Profile;
+        let before = Catalog::builtin().rules.len();
+        let c = Catalog::builtin().with_profiles(&[Profile {
+            agent: "cursor".into(),
+            path: "~/x".into(),
+        }]);
+        assert_eq!(c.rules.len(), before, "unprofileable agent must be a no-op");
     }
 
     #[test]

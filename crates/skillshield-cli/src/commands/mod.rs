@@ -6,6 +6,7 @@ use std::path::Path;
 pub mod config;
 pub mod init;
 pub mod monitor;
+pub mod profile;
 pub mod review;
 pub mod scan;
 pub mod schedule;
@@ -22,6 +23,17 @@ pub fn run(command: Command) -> Result<i32, String> {
         Command::Trust { path } => trust::run(&path),
         Command::Monitor { path } => monitor::run(&path),
         Command::Forget { path } => monitor::run_forget(&path),
+        Command::AddProfile {
+            agent,
+            path,
+            remove,
+        } => {
+            if remove {
+                profile::run_remove(&agent, &path)
+            } else {
+                profile::run(&agent, &path)
+            }
+        }
         Command::Schedule {
             remove,
             systemd,
@@ -73,6 +85,7 @@ pub fn discover_now() -> Result<
 > {
     let cfg = skillshield_core::config::Config::load().map_err(to_err)?;
     let catalog = skillshield_core::catalog::Catalog::builtin()
+        .with_profiles(&cfg.catalog.profiles)
         .apply(&cfg.catalog.disable, &cfg.catalog.extra_files)
         .retain_groups(cfg.catalog.monitor.as_deref());
     Ok((

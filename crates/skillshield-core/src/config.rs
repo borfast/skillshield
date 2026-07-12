@@ -36,6 +36,19 @@ pub struct CatalogConfig {
     /// `None` (absent) monitors all groups — `init` writes the user's choice.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub monitor: Option<Vec<String>>,
+    /// Extra agent profiles in non-standard locations (e.g. a second
+    /// `CLAUDE_CONFIG_DIR`). Each re-roots its agent's rules at `path`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub profiles: Vec<Profile>,
+}
+
+/// An agent installation whose profile directory is in a non-standard location.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Profile {
+    /// Which built-in agent's rule set to apply (`claude`, `codex`, `gemini`).
+    pub agent: String,
+    /// The profile's root directory (e.g. `~/.claude-gc`).
+    pub path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

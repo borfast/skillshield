@@ -120,7 +120,14 @@ pub fn render_overview(
         Some(groups) => groups.join(", "),
         None => "all groups (run `skillshield init` to choose)".to_string(),
     };
-    s.push_str(&format!("Monitoring groups: {monitoring}\n\n"));
+    s.push_str(&format!("Monitoring groups: {monitoring}\n"));
+    if !cfg.catalog.profiles.is_empty() {
+        s.push_str("Profiles:\n");
+        for p in &cfg.catalog.profiles {
+            s.push_str(&format!("  {} @ {}\n", p.agent, p.path));
+        }
+    }
+    s.push('\n');
 
     let catalog = Catalog::builtin();
     let global = catalog

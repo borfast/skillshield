@@ -23,6 +23,7 @@ skillshield config               # show effective settings, paths, and what gets
 skillshield init                 # pick what to monitor, discover artifacts, write baseline
 skillshield init --yes           # non-interactive: recommended groups, trust all
 skillshield monitor ~/projects/x # add a project directory to watch
+skillshield add-profile claude ~/.claude-gc  # watch an extra agent profile dir
 skillshield scan                 # check for changes (exit 10 if any)
 skillshield scan -v              # also list every item checked and its result
 skillshield status               # human-readable diff
@@ -44,6 +45,19 @@ At `init` you pick which groups to monitor (a checkbox picker; recommended
 groups that exist are pre-selected). The choice is saved to
 `[catalog].monitor` in the config and shown by `skillshield config`. Per-project
 files are covered separately via `skillshield monitor <path>`.
+
+### Extra agent profiles
+
+If an agent's profile lives in a non-standard directory (e.g. a second
+`CLAUDE_CONFIG_DIR` at `~/.claude-gc`), register it with:
+
+```bash
+skillshield add-profile claude ~/.claude-gc      # also: codex, gemini
+skillshield add-profile claude ~/.claude-gc --remove
+```
+
+This re-roots that agent's rules at the given directory as its own selectable
+groups (e.g. `claude.core@claude-gc`), recorded under `[[catalog.profiles]]`.
 
 ## Scheduling
 

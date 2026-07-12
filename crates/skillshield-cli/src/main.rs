@@ -2,6 +2,7 @@ mod cli;
 mod commands;
 mod exit;
 mod review_ui;
+mod tui;
 
 use clap::Parser;
 

@@ -20,7 +20,8 @@ cargo install --path crates/skillshield-cli
 
 ```bash
 skillshield config               # show effective settings, paths, and what gets scanned
-skillshield init                 # discover artifacts, review, write baseline
+skillshield init                 # pick what to monitor, discover artifacts, write baseline
+skillshield init --yes           # non-interactive: recommended groups, trust all
 skillshield monitor ~/projects/x # add a project directory to watch
 skillshield scan                 # check for changes (exit 10 if any)
 skillshield scan -v              # also list every item checked and its result
@@ -28,6 +29,21 @@ skillshield status               # human-readable diff
 skillshield review               # accept/reject pending changes
 skillshield schedule             # install a periodic scan (systemd timer or cron)
 ```
+
+## What it monitors
+
+SkillShield targets the files agents actually **load as behavior** — skills,
+plugins, commands, agents, hooks, settings, instruction files (`CLAUDE.md`/
+`AGENTS.md`/`GEMINI.md`), and MCP config — grouped per agent (`claude.core`,
+`claude.config`, `claude.memory`, `codex.core`, `codex.config`, `gemini`,
+`cursor`, `copilot`). It deliberately does **not** watch whole agent home
+directories, whose bulk is churny runtime state (sandboxes, sessions, caches,
+logs) that would drown a tripwire in noise.
+
+At `init` you pick which groups to monitor (a checkbox picker; recommended
+groups that exist are pre-selected). The choice is saved to
+`[catalog].monitor` in the config and shown by `skillshield config`. Per-project
+files are covered separately via `skillshield monitor <path>`.
 
 ## Scheduling
 

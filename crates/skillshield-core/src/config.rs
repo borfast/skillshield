@@ -32,6 +32,10 @@ pub struct ScanConfig {
 pub struct CatalogConfig {
     pub extra_files: Vec<String>,
     pub disable: Vec<String>,
+    /// Allowlist of global group keys to monitor (e.g. `["claude.core"]`).
+    /// `None` (absent) monitors all groups — `init` writes the user's choice.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub monitor: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -179,6 +183,18 @@ mod tests {
             toml::to_string_pretty(&parsed).unwrap(),
             text,
             "default config must round-trip through TOML"
+        );
+    }
+
+    #[test]
+    fn monitor_selection_round_trips() {
+        let mut c = Config::default();
+        c.catalog.monitor = Some(vec!["claude.core".into(), "gemini".into()]);
+        let text = toml::to_string_pretty(&c).unwrap();
+        let parsed: Config = toml::from_str(&text).unwrap();
+        assert_eq!(
+            parsed.catalog.monitor.as_deref(),
+            Some(&["claude.core".to_string(), "gemini".to_string()][..])
         );
     }
 }

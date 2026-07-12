@@ -4,7 +4,7 @@
 
 use crate::commands::to_err;
 use crate::exit::Code;
-use skillshield_core::catalog::{Catalog, Scope};
+use skillshield_core::catalog::{global_groups, Catalog, Scope};
 use skillshield_core::config::Config;
 use skillshield_core::paths;
 
@@ -115,6 +115,13 @@ pub fn render_overview(
     }
     s.push('\n');
 
+    let monitoring = match &cfg.catalog.monitor {
+        Some(groups) if groups.is_empty() => "(nothing selected)".to_string(),
+        Some(groups) => groups.join(", "),
+        None => "all groups (run `skillshield init` to choose)".to_string(),
+    };
+    s.push_str(&format!("Monitoring groups: {monitoring}\n\n"));
+
     let catalog = Catalog::builtin();
     let global = catalog
         .rules
@@ -126,11 +133,13 @@ pub fn render_overview(
         .iter()
         .filter(|r| r.scope == Scope::Project)
         .count();
+    let group_count = global_groups().len();
     s.push_str(&format!(
-        "Beyond project_roots, SkillShield always checks a built-in catalog of {global}\n\
-         global agent locations (e.g. ~/.claude/, ~/.codex/, ~/.gemini/, ~/.cursor/,\n\
-         ~/.config/*) and matches {project} project-file patterns (CLAUDE.md, AGENTS.md,\n\
-         .mcp.json, …) under any monitored project root.\n",
+        "The built-in catalog defines {global} global rules across {group_count} agent groups\n\
+         (behavior files only: skills, plugins, commands, agents, hooks, settings,\n\
+         instruction files, MCP config) plus {project} project-file patterns (CLAUDE.md,\n\
+         AGENTS.md, .mcp.json, …) matched under any monitored project root. Only the\n\
+         groups listed above are scanned.\n",
     ));
     s
 }

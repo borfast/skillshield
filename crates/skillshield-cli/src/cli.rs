@@ -19,6 +19,10 @@ pub enum Command {
         /// Overwrite an existing baseline.
         #[arg(long)]
         force: bool,
+        /// Non-interactive: take the recommended monitored groups and trust all
+        /// discovered files without prompting (for scripted installs).
+        #[arg(long)]
+        yes: bool,
     },
     /// Scan and report changes vs. the baseline (scheduled use). Read-only.
     Scan {
@@ -132,6 +136,12 @@ mod tests {
     #[test]
     fn init_force_flag() {
         let cli = Cli::try_parse_from(["skillshield", "init", "--force"]).unwrap();
-        assert!(matches!(cli.command, Command::Init { force: true }));
+        assert!(matches!(
+            cli.command,
+            Command::Init {
+                force: true,
+                yes: false
+            }
+        ));
     }
 }

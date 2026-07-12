@@ -1,5 +1,12 @@
 //! The catalog of what to watch: match rules (exact path / glob / directory
 //! file-set) and the built-in defaults for known AI-agent artifacts.
+//!
+//! Global rules are organized into named **groups** (e.g. `claude.core`) so the
+//! user can choose which agents/locations to monitor. The catalog deliberately
+//! targets the files agents actually *load as behavior* (skills, plugins,
+//! commands, agents, hooks, settings, instruction files, MCP config) rather
+//! than whole home directories, whose bulk is churny runtime state
+//! (sandboxes, sessions, caches, logs) that would drown a tripwire in noise.
 
 use serde::{Deserialize, Serialize};
 
@@ -19,9 +26,66 @@ pub enum MatchSpec {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rule {
     pub id: String,
+    /// Selection group this rule belongs to (e.g. `claude.core`). Project rules
+    /// use `project`; user `extra_files` rules use `extra`.
+    pub group: String,
     pub description: String,
     pub spec: MatchSpec,
     pub scope: Scope,
+}
+
+/// Metadata about a selectable global group, for the `init` picker and `config`.
+pub struct GroupMeta {
+    pub key: &'static str,
+    pub description: &'static str,
+    /// Whether it is pre-selected by default (when it exists on the machine).
+    pub default_on: bool,
+}
+
+/// The selectable global groups, in display order.
+pub fn global_groups() -> Vec<GroupMeta> {
+    vec![
+        GroupMeta {
+            key: "claude.core",
+            description: "Claude — skills, plugins, commands, agents",
+            default_on: true,
+        },
+        GroupMeta {
+            key: "claude.config",
+            description: "Claude — settings, CLAUDE.md, MCP, hooks",
+            default_on: true,
+        },
+        GroupMeta {
+            key: "claude.memory",
+            description: "Claude — MEMORY/ (injected memory)",
+            default_on: false,
+        },
+        GroupMeta {
+            key: "codex.core",
+            description: "Codex — skills, plugins, prompts, rules",
+            default_on: true,
+        },
+        GroupMeta {
+            key: "codex.config",
+            description: "Codex — config.toml, AGENTS.md",
+            default_on: true,
+        },
+        GroupMeta {
+            key: "gemini",
+            description: "Gemini — settings.json, GEMINI.md",
+            default_on: true,
+        },
+        GroupMeta {
+            key: "cursor",
+            description: "Cursor — mcp.json, rules",
+            default_on: true,
+        },
+        GroupMeta {
+            key: "copilot",
+            description: "GitHub Copilot — config",
+            default_on: true,
+        },
+    ]
 }
 
 #[derive(Debug, Clone)]
@@ -41,6 +105,7 @@ impl Catalog {
         for (i, glob) in extra_files.iter().enumerate() {
             self.rules.push(Rule {
                 id: format!("extra.{i}"),
+                group: "extra".into(),
                 description: format!("user extra: {glob}"),
                 spec: MatchSpec::Glob(glob.clone()),
                 scope: Scope::Project,
@@ -48,20 +113,33 @@ impl Catalog {
         }
         self
     }
+
+    /// Keep only the global rules whose group is in `monitor` (project and
+    /// extra rules are always kept — they apply under opted-in project roots).
+    /// `None` keeps everything (back-compat for hand-written configs).
+    pub fn retain_groups(mut self, monitor: Option<&[String]>) -> Self {
+        if let Some(groups) = monitor {
+            self.rules
+                .retain(|r| r.scope != Scope::Global || groups.iter().any(|g| g == &r.group));
+        }
+        self
+    }
 }
 
-fn global(id: &str, desc: &str, spec: MatchSpec) -> Rule {
+fn g(id: &str, group: &str, desc: &str, spec: MatchSpec) -> Rule {
     Rule {
         id: id.into(),
+        group: group.into(),
         description: desc.into(),
         spec,
         scope: Scope::Global,
     }
 }
 
-fn project(id: &str, desc: &str, spec: MatchSpec) -> Rule {
+fn p(id: &str, desc: &str, spec: MatchSpec) -> Rule {
     Rule {
         id: id.into(),
+        group: "project".into(),
         description: desc.into(),
         spec,
         scope: Scope::Project,
@@ -71,130 +149,173 @@ fn project(id: &str, desc: &str, spec: MatchSpec) -> Rule {
 pub fn default_rules() -> Vec<Rule> {
     use MatchSpec::*;
     vec![
-        // ---- Global locations ----
-        global(
-            "claude.home",
-            "Claude home top-level files",
-            DirFileSet("~/.claude/".into()),
-        ),
-        global(
+        // ---- Claude ----
+        g(
             "claude.skills",
+            "claude.core",
             "Claude skills",
             DirFileSet("~/.claude/skills/".into()),
         ),
-        global(
+        g(
             "claude.plugins",
+            "claude.core",
             "Claude plugins & marketplaces",
             DirFileSet("~/.claude/plugins/".into()),
         ),
-        global(
+        g(
             "claude.commands",
+            "claude.core",
             "Claude commands",
             DirFileSet("~/.claude/commands/".into()),
         ),
-        global(
+        g(
             "claude.agents",
+            "claude.core",
             "Claude agents",
             DirFileSet("~/.claude/agents/".into()),
         ),
-        global(
-            "claude.md.home",
+        g(
+            "claude.md",
+            "claude.config",
             "Global CLAUDE.md",
             ExactPath("~/.claude/CLAUDE.md".into()),
         ),
-        global(
+        g(
             "claude.settings",
+            "claude.config",
             "Claude settings",
             Glob("~/.claude/settings*.json".into()),
         ),
-        global(
+        g(
             "claude.mcp",
+            "claude.config",
             "Claude MCP/project registry",
             ExactPath("~/.claude.json".into()),
         ),
-        global(
-            "claude.config.xdg",
-            "Claude XDG config",
-            DirFileSet("~/.config/claude/".into()),
+        g(
+            "claude.hooks",
+            "claude.config",
+            "Claude hooks (run shell commands)",
+            DirFileSet("~/.claude/hooks/".into()),
         ),
-        global("codex.home", "Codex home", DirFileSet("~/.codex/".into())),
-        global(
-            "codex.config.xdg",
-            "Codex XDG config",
-            DirFileSet("~/.config/codex/".into()),
+        g(
+            "claude.memory",
+            "claude.memory",
+            "Claude injected memory",
+            DirFileSet("~/.claude/MEMORY/".into()),
         ),
-        global(
-            "gemini.home",
-            "Gemini home",
-            DirFileSet("~/.gemini/".into()),
+        // ---- Codex ----
+        g(
+            "codex.skills",
+            "codex.core",
+            "Codex skills",
+            DirFileSet("~/.codex/skills/".into()),
         ),
-        global(
-            "gemini.md.home",
+        g(
+            "codex.plugins",
+            "codex.core",
+            "Codex plugins",
+            DirFileSet("~/.codex/plugins/".into()),
+        ),
+        g(
+            "codex.prompts",
+            "codex.core",
+            "Codex prompts",
+            DirFileSet("~/.codex/prompts/".into()),
+        ),
+        g(
+            "codex.rules",
+            "codex.core",
+            "Codex rules",
+            DirFileSet("~/.codex/rules/".into()),
+        ),
+        g(
+            "codex.config",
+            "codex.config",
+            "Codex config.toml",
+            ExactPath("~/.codex/config.toml".into()),
+        ),
+        g(
+            "codex.md",
+            "codex.config",
+            "Global Codex AGENTS.md",
+            ExactPath("~/.codex/AGENTS.md".into()),
+        ),
+        // ---- Gemini ----
+        g(
+            "gemini.settings",
+            "gemini",
+            "Gemini settings",
+            ExactPath("~/.gemini/settings.json".into()),
+        ),
+        g(
+            "gemini.md",
+            "gemini",
             "Global GEMINI.md",
             ExactPath("~/.gemini/GEMINI.md".into()),
         ),
-        global(
-            "gemini.config.xdg",
-            "Gemini XDG config",
-            DirFileSet("~/.config/gemini/".into()),
+        // ---- Cursor ----
+        g(
+            "cursor.mcp",
+            "cursor",
+            "Cursor MCP config",
+            ExactPath("~/.cursor/mcp.json".into()),
         ),
-        global(
-            "cursor.home",
-            "Cursor home (rules, MCP)",
-            DirFileSet("~/.cursor/".into()),
+        g(
+            "cursor.rules",
+            "cursor",
+            "Cursor rules",
+            DirFileSet("~/.cursor/rules/".into()),
         ),
-        global(
-            "copilot.config.xdg",
+        // ---- GitHub Copilot ----
+        g(
+            "copilot.config",
+            "copilot",
             "GitHub Copilot config",
             DirFileSet("~/.config/github-copilot/".into()),
         ),
-        global(
-            "mcp.config.xdg",
-            "MCP XDG config",
-            DirFileSet("~/.config/mcp/".into()),
-        ),
-        // ---- Project artifact patterns ----
-        project(
+        // ---- Project artifact patterns (matched only under opted-in roots) ----
+        p(
             "proj.claude.md",
             "Project CLAUDE.md",
             Glob("**/CLAUDE.md".into()),
         ),
-        project(
+        p(
             "proj.claude.local",
             "Project CLAUDE.local.md",
             Glob("**/CLAUDE.local.md".into()),
         ),
-        project(
+        p(
             "proj.agents.md",
             "Project AGENTS.md",
             Glob("**/AGENTS.md".into()),
         ),
-        project(
+        p(
             "proj.gemini.md",
             "Project GEMINI.md",
             Glob("**/GEMINI.md".into()),
         ),
-        project(
+        p(
             "proj.claude.dir",
             "Project .claude directory",
             DirFileSet("**/.claude/".into()),
         ),
-        project(
+        p(
             "proj.cursor.dir",
             "Project .cursor directory",
             DirFileSet("**/.cursor/".into()),
         ),
-        project(
+        p(
             "proj.cursorrules",
             "Project .cursorrules",
             Glob("**/.cursorrules".into()),
         ),
-        project(
+        p(
             "proj.mcp.json",
             "Project .mcp.json",
             Glob("**/.mcp.json".into()),
         ),
-        project(
+        p(
             "proj.github.copilot",
             "Copilot instructions",
             Glob("**/.github/copilot-instructions.md".into()),
@@ -231,5 +352,64 @@ mod tests {
         );
         assert!(!c.rules.iter().any(|r| r.id == "claude.skills"));
         assert!(c.rules.iter().any(|r| r.id == "extra.0"));
+    }
+
+    #[test]
+    fn no_recursive_whole_home_rules() {
+        // The overly-broad whole-home / whole-XDG rules must be gone.
+        for r in Catalog::builtin().rules {
+            if let MatchSpec::DirFileSet(p) = &r.spec {
+                let broad = [
+                    "~/.claude/",
+                    "~/.codex/",
+                    "~/.gemini/",
+                    "~/.cursor/",
+                    "~/.config/claude/",
+                    "~/.config/codex/",
+                    "~/.config/gemini/",
+                    "~/.config/mcp/",
+                ];
+                assert!(
+                    !broad.contains(&p.as_str()),
+                    "recursive whole-home rule leaked: {}",
+                    r.id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_global_rule_has_a_known_group() {
+        let keys: Vec<&str> = global_groups().iter().map(|g| g.key).collect();
+        for r in Catalog::builtin()
+            .rules
+            .iter()
+            .filter(|r| r.scope == Scope::Global)
+        {
+            assert!(
+                keys.contains(&r.group.as_str()),
+                "rule {} has unknown group {}",
+                r.id,
+                r.group
+            );
+        }
+    }
+
+    #[test]
+    fn retain_groups_filters_globals_but_keeps_project() {
+        let c = Catalog::builtin().retain_groups(Some(&["claude.core".to_string()]));
+        // kept: claude.core globals + all project rules
+        assert!(c.rules.iter().any(|r| r.id == "claude.skills"));
+        assert!(c.rules.iter().any(|r| r.id == "proj.agents.md"));
+        // dropped: a global from a non-selected group
+        assert!(!c.rules.iter().any(|r| r.id == "gemini.md"));
+        assert!(!c.rules.iter().any(|r| r.id == "claude.memory"));
+    }
+
+    #[test]
+    fn retain_groups_none_keeps_everything() {
+        let before = Catalog::builtin().rules.len();
+        let after = Catalog::builtin().retain_groups(None).rules.len();
+        assert_eq!(before, after);
     }
 }

@@ -10,6 +10,7 @@ fn catalog_for(dir: &std::path::Path) -> Catalog {
     Catalog {
         rules: vec![Rule {
             id: "t".into(),
+            group: "test".into(),
             description: "".into(),
             spec: MatchSpec::DirFileSet(format!("{}/", dir.display())),
             scope: Scope::Global,

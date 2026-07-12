@@ -335,12 +335,14 @@ mod tests {
             rules: vec![
                 Rule {
                     id: "md".into(),
+                    group: "test".into(),
                     description: "".into(),
                     spec: MatchSpec::ExactPath(root.join("mem/CLAUDE.md").to_string_lossy().into()),
                     scope: Scope::Global,
                 },
                 Rule {
                     id: "skills".into(),
+                    group: "test".into(),
                     description: "".into(),
                     spec: MatchSpec::DirFileSet(root.join("skills/").to_string_lossy().into()),
                     scope: Scope::Global,
@@ -366,6 +368,7 @@ mod tests {
         let cat = Catalog {
             rules: vec![Rule {
                 id: "d".into(),
+                group: "test".into(),
                 description: "".into(),
                 spec: MatchSpec::DirFileSet(root.join("d/").to_string_lossy().into()),
                 scope: Scope::Global,
@@ -393,6 +396,7 @@ mod tests {
         let cat = Catalog {
             rules: vec![Rule {
                 id: "agents".into(),
+                group: "test".into(),
                 description: "".into(),
                 spec: MatchSpec::Glob("**/AGENTS.md".into()),
                 scope: Scope::Project,
@@ -420,6 +424,7 @@ mod tests {
         let cat = Catalog {
             rules: vec![Rule {
                 id: "claude-dir".into(),
+                group: "test".into(),
                 description: "".into(),
                 spec: MatchSpec::DirFileSet("**/.claude/".into()),
                 scope: Scope::Project,

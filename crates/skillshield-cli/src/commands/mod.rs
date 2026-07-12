@@ -14,7 +14,7 @@ pub mod trust;
 
 pub fn run(command: Command) -> Result<i32, String> {
     match command {
-        Command::Init { force } => init::run(force),
+        Command::Init { force, yes } => init::run(force, yes),
         Command::Scan { verbose } => scan::run(verbose),
         Command::Status => status::run(),
         Command::Config => config::run(),
@@ -73,7 +73,8 @@ pub fn discover_now() -> Result<
 > {
     let cfg = skillshield_core::config::Config::load().map_err(to_err)?;
     let catalog = skillshield_core::catalog::Catalog::builtin()
-        .apply(&cfg.catalog.disable, &cfg.catalog.extra_files);
+        .apply(&cfg.catalog.disable, &cfg.catalog.extra_files)
+        .retain_groups(cfg.catalog.monitor.as_deref());
     Ok((
         skillshield_core::discovery::discover(&catalog, &cfg.scan),
         cfg,

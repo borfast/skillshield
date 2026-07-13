@@ -140,12 +140,14 @@ fn maybe_setup_desktop(cfg: &Config) -> Result<(), String> {
             "Enabled 'desktop' notifications in {}",
             config_path.display()
         );
+        // Send a one-off confirmation only when first enabling the channel —
+        // not on every `init`/`init --force` run.
+        let _ = notify_rust::Notification::new()
+            .summary("SkillShield")
+            .body("Desktop notifications are working.")
+            .show();
+        println!("Sent a test desktop notification (check your notifications).");
     }
-    let _ = notify_rust::Notification::new()
-        .summary("SkillShield")
-        .body("Desktop notifications are working.")
-        .show();
-    println!("Sent a test desktop notification (check your notifications).");
     Ok(())
 }
 

@@ -1,13 +1,12 @@
 use crate::commands::{to_err, write_config};
 use crate::review_ui::group_entries;
-use crate::tui::{self, GroupChoice};
 use skillshield_core::baseline::Baseline;
-use skillshield_core::catalog::{global_groups, group_default_on, profile_name, Catalog, Scope};
+use skillshield_core::catalog::{group_default_on, Catalog, Scope};
 use skillshield_core::config::{Config, ScanConfig};
 use skillshield_core::discovery::discover;
 use skillshield_core::notify::desktop::graphical_session_available;
 use skillshield_core::paths;
-use std::io::{self, IsTerminal, Write};
+use std::io::{self, Write};
 
 pub fn run(force: bool, yes: bool) -> Result<i32, String> {
     let baseline_path = paths::baseline_path().map_err(to_err)?;
@@ -29,41 +28,23 @@ pub fn run(force: bool, yes: bool) -> Result<i32, String> {
         );
     }
 
-    // Orient the user: what init does, where config/state live, the effective
-    // settings, and the built-in catalog.
-    print!("{}", crate::commands::config::overview_for(&cfg)?);
+    // Decide what to monitor. Keep an explicit selection if the config already
+    // has one (hand-edited or from a prior run); otherwise select the
+    // recommended groups (default-on and present on this machine). Customize by
+    // editing `[catalog].monitor` — no interactive prompt.
+    if cfg.catalog.monitor.is_none() {
+        cfg.catalog.monitor = Some(recommended_monitor(&cfg));
+        write_config(&cfg)?;
+    }
 
-    // Choose which catalog groups to monitor. On a TTY, show the picker; on a
-    // non-interactive stream (cron/CI/piped) or with --yes, take the
-    // recommended defaults.
-    let choices = build_group_choices(&cfg);
-    let interactive = io::stdin().is_terminal() && io::stdout().is_terminal();
-    let selected = if interactive && !yes {
-        match tui::select_groups(
-            "Select which locations SkillShield should monitor (space to toggle):",
-            choices,
-        )? {
-            Some(sel) => sel,
-            None => {
-                println!("\nAborted. No baseline written.");
-                return Ok(0);
-            }
-        }
-    } else {
-        tui::selected_keys(&choices)
-    };
-    cfg.catalog.monitor = Some(selected.clone());
-    write_config(&cfg)?;
+    // Orient the user (this reflects the monitor selection).
+    print!("{}", crate::commands::config::overview_for(&cfg)?);
     println!(
-        "\nMonitoring: {}",
-        if selected.is_empty() {
-            "(nothing selected)".to_string()
-        } else {
-            selected.join(", ")
-        }
+        "\nTo change what's monitored, edit [catalog].monitor in the config \
+         (see `skillshield config`) and re-run `skillshield init --force`.\n"
     );
 
-    println!("\nScanning monitored locations…\n");
+    println!("Scanning monitored locations…\n");
     let catalog = Catalog::builtin()
         .with_profiles(&cfg.catalog.profiles)
         .apply(&cfg.catalog.disable, &cfg.catalog.extra_files)
@@ -109,78 +90,37 @@ pub fn run(force: bool, yes: bool) -> Result<i32, String> {
     Ok(0)
 }
 
-/// Build the picker rows: one per global group, with a file count (or "not
-/// found") and pre-checked per the recommended default, or per an existing
-/// `monitor` selection when re-running `init`.
-fn build_group_choices(cfg: &Config) -> Vec<GroupChoice> {
-    // Enumerate every global group in the profiled catalog (built-in + profile
-    // groups). Apply per-rule `disable` so the picker's counts match what would
-    // actually be scanned.
+/// The recommended `monitor` allowlist for a fresh setup: every global group
+/// that is default-on and actually present on this machine.
+fn recommended_monitor(cfg: &Config) -> Vec<String> {
     let catalog = Catalog::builtin()
         .with_profiles(&cfg.catalog.profiles)
         .apply(&cfg.catalog.disable, &[]);
-    let existing = cfg.catalog.monitor.clone();
 
-    let mut groups: Vec<String> = Vec::new();
+    let mut seen: Vec<String> = Vec::new();
+    let mut selected: Vec<String> = Vec::new();
     for r in catalog.rules.iter().filter(|r| r.scope == Scope::Global) {
-        if !groups.contains(&r.group) {
-            groups.push(r.group.clone());
+        if seen.contains(&r.group) {
+            continue;
+        }
+        seen.push(r.group.clone());
+        if !group_default_on(&r.group) {
+            continue;
+        }
+        let rules: Vec<_> = catalog
+            .rules
+            .iter()
+            .filter(|x| x.scope == Scope::Global && x.group == r.group)
+            .cloned()
+            .collect();
+        let present = !discover(&Catalog { rules }, &ScanConfig::default())
+            .entries
+            .is_empty();
+        if present {
+            selected.push(r.group.clone());
         }
     }
-
-    groups
-        .into_iter()
-        .map(|group| {
-            let rules: Vec<_> = catalog
-                .rules
-                .iter()
-                .filter(|r| r.scope == Scope::Global && r.group == group)
-                .cloned()
-                .collect();
-            let count = discover(&Catalog { rules }, &ScanConfig::default())
-                .entries
-                .len();
-            let exists = count > 0;
-            let detail = if exists {
-                format!("{count} file(s)")
-            } else {
-                "not found".into()
-            };
-            let (label, default_on) = group_display(&group);
-            let checked = match &existing {
-                Some(sel) => sel.iter().any(|g| g == &group),
-                None => default_on && exists,
-            };
-            GroupChoice {
-                key: group,
-                label,
-                detail,
-                checked,
-            }
-        })
-        .collect()
-}
-
-/// Human label + default-on flag for a group key. Profile groups (`base@name`)
-/// derive their label from the base group's description plus the profile name.
-fn group_display(group: &str) -> (String, bool) {
-    if let Some(meta) = global_groups().into_iter().find(|m| m.key == group) {
-        return (meta.description.to_string(), meta.default_on);
-    }
-    if let Some((base, path)) = group.split_once('@') {
-        let base_desc = global_groups()
-            .into_iter()
-            .find(|m| m.key == base)
-            .map(|m| m.description.to_string())
-            .unwrap_or_else(|| base.to_string());
-        // Friendly label (basename), but the group KEY keeps the full path;
-        // inherit the base group's default-on (so memory@… stays opt-in).
-        return (
-            format!("{base_desc}  @ {}", profile_name(path)),
-            group_default_on(group),
-        );
-    }
-    (group.to_string(), true)
+    selected
 }
 
 fn maybe_setup_desktop(cfg: &Config) -> Result<(), String> {

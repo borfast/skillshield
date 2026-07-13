@@ -20,8 +20,8 @@ cargo install --path crates/skillshield-cli
 
 ```bash
 skillshield config               # show effective settings, paths, and what gets scanned
-skillshield init                 # pick what to monitor, discover artifacts, write baseline
-skillshield init --yes           # non-interactive: recommended groups, trust all
+skillshield init                 # recommended groups, discover artifacts, write baseline
+skillshield init --yes           # also trust all without prompting (scripted installs)
 skillshield monitor ~/projects/x # add a project directory to watch
 skillshield add-profile claude ~/.claude-gc  # watch an extra agent profile dir
 skillshield scan                 # check for changes (exit 10 if any)
@@ -41,10 +41,11 @@ plugins, commands, agents, hooks, settings, instruction files (`CLAUDE.md`/
 directories, whose bulk is churny runtime state (sandboxes, sessions, caches,
 logs) that would drown a tripwire in noise.
 
-At `init` you pick which groups to monitor (a checkbox picker; recommended
-groups that exist are pre-selected). The choice is saved to
-`[catalog].monitor` in the config and shown by `skillshield config`. Per-project
-files are covered separately via `skillshield monitor <path>`.
+`init` selects the recommended groups (those that are on by default and present
+on the machine) and saves them to `[catalog].monitor` in the config. To change
+what's monitored, edit that list (run `skillshield config` to see the available
+groups) and re-run `skillshield init --force`. Per-project files are covered
+separately via `skillshield monitor <path>`.
 
 ### Extra agent profiles
 
